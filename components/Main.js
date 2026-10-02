@@ -40,8 +40,119 @@ function Spark({ g, v }) {
   )
 }
 const Opts = ({ a }) => a.map(x => <option key={x}>{x}</option>)
+// ---- STO (short-term objective) config: one place to extend measurement types or statuses ----
+const SUPPORT_LEVELS = { 1: 'Physical', 2: 'Verbal', 3: 'Gesture', 4: 'Independent' } // higher = more independent
+const MT = {
+  count: { label: 'Count / repetitions', unit: 'times' },
+  percentage: { label: 'Percentage / accuracy', unit: '%', fixed: true },
+  duration: { label: 'Duration', units: ['seconds', 'minutes', 'hours'] },
+  frequency: { label: 'Frequency', units: ['times per hour', 'times per day', 'times per week'] },
+  independence: { label: 'Independence / support level', unit: 'support level', fixed: true },
+}
+const STATUS = { not_started: 'Not started', in_progress: 'In progress', met: 'Met', discontinued: 'Discontinued' }
+const stLabel = x => STATUS[x] ?? String(x)
+const stoSort = (a, b) => (Number(a.sort_order ?? 1e9) - Number(b.sort_order ?? 1e9)) || String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''))
+const stoFmt = (mt, v, unit) => {
+  if (v == null || v === '') return '-'
+  if (mt === 'independence') return SUPPORT_LEVELS[v] ?? String(v)
+  if (mt === 'percentage') return v + '%'
+  return v + (unit ? ' ' + unit : '')
+}
+const blankSto = { title: '', mt: 'count', baseline: '', target: '', unit: 'times', date: '', status: 'not_started', supports: '' }
+const stoToForm = o => ({
+  title: o.title ?? '', mt: o.measurement_type ?? 'count',
+  baseline: o.baseline == null ? '' : String(o.baseline), target: o.target == null ? '' : String(o.target),
+  unit: o.unit ?? '', date: o.target_date ? String(o.target_date).slice(0, 10) : '',
+  status: o.status ?? 'not_started', supports: o.supports ?? '',
+})
 
-function GoalCard({ g, logs, names, uid, parent, canEdit, onEdit, onLog, onDelLog, onDelGoal }) {
+function StoForm({ init, submitLabel, onSave, onCancel }) {
+  const [f, setF] = useState(init), [msg, setMsg] = useState(''), [busy, setBusy] = useState(false)
+  const set = k => e => setF({ ...f, [k]: e.target.value })
+  const cfg = MT[f.mt] || {}, lvl = f.mt === 'independence'
+  const types = Object.keys(MT).concat(MT[f.mt] ? [] : [f.mt])
+  const stats = Object.keys(STATUS).concat(STATUS[f.status] ? [] : [f.status])
+  const units = cfg.units ? (cfg.units.includes(f.unit) || !f.unit ? cfg.units : [f.unit, ...cfg.units]) : []
+  const changeType = e => {
+    const mt = e.target.value, c = MT[mt] || {}, flip = (f.mt === 'independence') !== (mt === 'independence')
+    setF({ ...f, mt, unit: c.fixed ? c.unit : c.units ? c.units[0] : (c.unit ?? f.unit), baseline: flip ? '' : f.baseline, target: flip ? '' : f.target })
+  }
+  const val = k => lvl
+    ? <select value={f[k]} onChange={set(k)}><option value="">Select level</option>{Object.entries(SUPPORT_LEVELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+    : <input type="number" step="any" value={f[k]} onChange={set(k)} />
+  async function save() {
+    const num = v => (v === '' ? null : Number(v))
+    if (!f.title.trim()) return setMsg('Add a title.')
+    if (f.target === '') return setMsg('Add a target.')
+    if (f.mt === 'percentage' && [f.baseline, f.target].some(v => v !== '' && (+v < 0 || +v > 100))) return setMsg('Percentages must be between 0 and 100.')
+    setMsg(''); setBusy(true)
+    await onSave({ title: f.title.trim(), measurement_type: f.mt, baseline: num(f.baseline), target: num(f.target), unit: (f.unit || '').trim(), target_date: f.date || null, status: f.status, supports: f.supports.trim() })
+    setBusy(false)
+  }
+  return (
+    <div style={{ border: '1px solid var(--bd)', borderRadius: 8, padding: 10, marginTop: 8 }}>
+      <label>Objective title</label>
+      <input value={f.title} onChange={set('title')} placeholder="Stacks 4 blocks with a verbal prompt" />
+      <div className="row">
+        <div><label>Measurement type</label><select value={f.mt} onChange={changeType}>{types.map(t => <option key={t} value={t}>{MT[t] ? MT[t].label : t}</option>)}</select></div>
+        <div><label>Target date</label><input type="date" value={f.date} onChange={set('date')} /></div>
+      </div>
+      <div className="row">
+        <div><label>Baseline (optional)</label>{val('baseline')}</div>
+        <div><label>Target</label>{val('target')}</div>
+        {!cfg.fixed && (
+          <div><label>Unit</label>
+            {cfg.units ? <select value={f.unit} onChange={set('unit')}>{units.map(u => <option key={u}>{u}</option>)}</select>
+              : <input value={f.unit} onChange={set('unit')} placeholder="blocks, steps, words" />}
+          </div>
+        )}
+      </div>
+      <label>Status</label>
+      <select value={f.status} onChange={set('status')}>{stats.map(k => <option key={k} value={k}>{stLabel(k)}</option>)}</select>
+      <label>Supports</label>
+      <input value={f.supports} onChange={set('supports')} placeholder="Visual cue, hand-over-hand at first" />
+      {msg && <div className="err">{msg}</div>}
+      <button className="btn" disabled={busy} onClick={save}>{submitLabel}</button>{' '}
+      <button className="btn g" onClick={onCancel}>Cancel</button>
+    </div>
+  )
+}
+
+function StoSection({ stos, canEdit, onAdd, onEdit, onDel }) {
+  const [adding, setAdding] = useState(false), [editId, setEditId] = useState(null), [delId, setDelId] = useState(null)
+  if (!stos.length && !canEdit) return null
+  const sel = { width: 'auto', margin: 0, padding: '4px 8px', fontSize: 13 }
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div className="sm"><b>Short-term objectives</b></div>
+      {stos.map(o => editId === o.id ? (
+        <StoForm key={o.id} init={stoToForm(o)} submitLabel="Save changes" onCancel={() => setEditId(null)}
+          onSave={async row => { if (await onEdit(o.id, row)) setEditId(null) }} />
+      ) : (
+        <div key={o.id} style={{ border: '1px solid var(--bd)', borderRadius: 8, padding: 10, marginTop: 8 }}>
+          <div><b>{o.title}</b> <span className="tag">{MT[o.measurement_type] ? MT[o.measurement_type].label : (o.measurement_type || 'Unspecified')}</span></div>
+          <div className="sm">Baseline {stoFmt(o.measurement_type, o.baseline, o.unit)} to target {stoFmt(o.measurement_type, o.target, o.unit)}{o.target_date ? ' by ' + String(o.target_date).slice(0, 10) : ''}</div>
+          {o.supports && <div className="sm"><b>Supports:</b> {o.supports}</div>}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 6 }}>
+            {canEdit ? (
+              <select value={o.status ?? ''} onChange={e => onEdit(o.id, { status: e.target.value })} style={sel}>
+                {!o.status && <option value="">Status not set</option>}
+                {Object.keys(STATUS).concat(o.status && !STATUS[o.status] ? [o.status] : []).map(k => <option key={k} value={k}>{stLabel(k)}</option>)}
+              </select>
+            ) : (o.status ? <span className="tag">{stLabel(o.status)}</span> : null)}
+            {canEdit && <button className="x" onClick={() => setEditId(o.id)}>edit</button>}
+            {canEdit && <button className="x" onClick={async () => { if (delId === o.id) { await onDel(o.id); setDelId(null) } else setDelId(o.id) }}>{delId === o.id ? 'Tap again to delete' : 'delete'}</button>}
+          </div>
+        </div>
+      ))}
+      {canEdit && (adding
+        ? <StoForm init={blankSto} submitLabel="Add objective" onCancel={() => setAdding(false)} onSave={async row => { if (await onAdd(row)) setAdding(false) }} />
+        : <div style={{ marginTop: 8 }}><button className="btn g" onClick={() => setAdding(true)}>Add objective</button></div>)}
+    </div>
+  )
+}
+
+function GoalCard({ g, logs, stos = [], names, uid, parent, canEdit, onEdit, onAddSto, onEditSto, onDelSto, onLog, onDelLog, onDelGoal }) {
   const v = gv(g, logs), r = v.slice(-5), last = v[v.length - 1]
   const ind = r.filter(x => x.prompt_level === 'Independent').length
   const [f, setF] = useState({ value: '', date: today(), p: 'Independent', w: 'Home', n: '' }), [c, setC] = useState(false), [ed, setEd] = useState(null)
@@ -55,6 +166,7 @@ function GoalCard({ g, logs, names, uid, parent, canEdit, onEdit, onLog, onDelLo
       <div className="bar"><i style={{ width: pct(g, v) + '%' }} /></div>
       <Spark g={g} v={v} />
       {g.supports && <div className="sm"><b>Supports that help:</b> {g.supports}</div>}
+      <StoSection stos={stos} canEdit={canEdit} onAdd={onAddSto} onEdit={onEditSto} onDel={onDelSto} />
       {r.length > 0 && <div className="sm">Independent in {ind} of last {r.length} entries</div>}
       <div style={{ marginTop: 10 }}>
         <div className="row">
@@ -257,7 +369,7 @@ function Team({ team, names, uid, parent, cid, kid, onRevoke, onName, onDeleteCh
 export default function Main({ session }) {
   const uid = session.user.id
   const [kids, setKids] = useState([]), [cid, setCid] = useState(null), [tab, setTab] = useState('goals'), [err, setErr] = useState('')
-  const [d, setD] = useState({ goals: [], logs: [], beh: [], team: [], names: {} }), [nk, setNk] = useState('')
+  const [d, setD] = useState({ goals: [], logs: [], stos: [], beh: [], team: [], names: {} }), [nk, setNk] = useState('')
   const chk = r => { if (r.error) { setErr(r.error.message); return [] } return r.data || [] }
 
   const loadKids = useCallback(async () => {
@@ -267,14 +379,17 @@ export default function Main({ session }) {
   useEffect(() => { loadKids() }, [loadKids])
 
   const load = useCallback(async () => {
-    if (!cid) { setD({ goals: [], logs: [], beh: [], team: [], names: {} }); return }
+    if (!cid) { setD({ goals: [], logs: [], stos: [], beh: [], team: [], names: {} }); return }
     const [g, l, b, t, p] = await Promise.all([
       supabase.from('goals').select('*').eq('child_id', cid).eq('archived', false).order('created_at'),
       supabase.from('logs').select('*').eq('child_id', cid),
       supabase.from('behavior_entries').select('*').eq('child_id', cid).order('logged_on'),
       supabase.from('memberships').select('*').eq('child_id', cid),
       supabase.from('profiles').select('id,display_name')])
-    setD({ goals: chk(g), logs: chk(l), beh: chk(b), team: chk(t), names: Object.fromEntries(chk(p).map(x => [x.id, x.display_name])) })
+    const goalRows = chk(g)
+    const goalIds = goalRows.map(x => x.id)
+    const stoRows = goalIds.length ? chk(await supabase.from('sto_objectives').select('*').in('goal_id', goalIds)) : []
+    setD({ goals: goalRows, logs: chk(l), stos: stoRows.slice().sort(stoSort), beh: chk(b), team: chk(t), names: Object.fromEntries(chk(p).map(x => [x.id, x.display_name])) })
   }, [cid])
   useEffect(() => { load() }, [load])
 
@@ -282,6 +397,20 @@ export default function Main({ session }) {
   const kid = kids.find(k => k.id === cid), me = d.team.find(m => m.user_id === uid), parent = me?.role === 'parent'
   const canGoals = !!me?.can_edit_goals
   const joined = async id => { await loadKids(); setCid(id) }
+
+  // STO writes. RLS decides who may write; an update or delete that matches no row was blocked or not found.
+  const stoRun = async (p, needRows = true) => {
+    const r = await p
+    if (r.error) { setErr(r.error.message); return false }
+    if (needRows && (!r.data || !r.data.length)) { setErr('Nothing was changed. You may not have permission for that.'); return false }
+    setErr(''); await load(); return true
+  }
+  const stoAdd = (goalId, row) => {
+    const next = d.stos.filter(o => o.goal_id === goalId).reduce((m, o) => Math.max(m, Number(o.sort_order) || 0), 0) + 1
+    return stoRun(supabase.from('sto_objectives').insert({ ...row, goal_id: goalId, created_by: uid, sort_order: next }), false)
+  }
+  const stoEdit = (id, patch) => stoRun(supabase.from('sto_objectives').update(patch).eq('id', id).select())
+  const stoDel = id => stoRun(supabase.from('sto_objectives').delete().eq('id', id).select())
 
   async function addKid() {
     if (!nk.trim()) return
@@ -319,7 +448,8 @@ export default function Main({ session }) {
           </div>
           <nav>{[['goals', 'Goals'], ['beh', 'Behavior'], ['rep', 'Report'], ['team', 'Team']].map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</nav>
           {tab === 'goals' && <>
-            {d.goals.map(g => <GoalCard key={g.id} g={g} logs={d.logs} names={d.names} uid={uid} parent={parent} canEdit={canGoals}
+            {d.goals.map(g => <GoalCard key={g.id} g={g} logs={d.logs} stos={d.stos.filter(o => o.goal_id === g.id)} names={d.names} uid={uid} parent={parent} canEdit={canGoals}
+              onAddSto={row => stoAdd(g.id, row)} onEditSto={stoEdit} onDelSto={stoDel}
               onEdit={(id, patch) => run(supabase.from('goals').update(patch).eq('id', id))}
               onLog={row => run(supabase.from('logs').insert({ ...row, child_id: cid }))}
               onDelLog={id => run(supabase.from('logs').delete().eq('id', id))}
