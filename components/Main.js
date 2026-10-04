@@ -836,9 +836,158 @@ function Team({ team, names, uid, parent, cid, kid, onRevoke, onName, onDeleteCh
     </>
   )
 }
+function AdminDashboard({ onBack }) {
+  const [stats, setStats] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [adminErr, setAdminErr] = useState('')
 
+  const loadStats = useCallback(async () => {
+    setLoading(true)
+    setAdminErr('')
+
+    const r = await supabase.rpc('admin_dashboard_stats')
+
+    if (r.error) {
+      setAdminErr(r.error.message)
+      setStats(null)
+    } else {
+      setStats(r.data)
+    }
+
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    loadStats()
+  }, [loadStats])
+
+  const cards = stats ? [
+    ['Users', stats.total_users],
+    ['Children', stats.total_children],
+    ['Goals', stats.total_goals],
+    ['STOs', stats.total_stos],
+    ['Progress logs', stats.total_progress_logs],
+    ['Behavior entries', stats.total_behavior_entries],
+    ['Team memberships', stats.total_memberships],
+    ['Invites', stats.total_invites]
+  ] : []
+
+  return (
+    <>
+      <div className="card">
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '12px',
+            marginBottom: '18px'
+          }}
+        >
+          <div>
+            <h2 style={{ marginBottom: '4px' }}>StepTrack Admin</h2>
+            <div className="sm">Owner analytics · platform overview</div>
+          </div>
+
+          <button
+            className="btn g"
+            style={{ flex: '0 0 auto', marginBottom: 0 }}
+            onClick={onBack}
+          >
+            Back
+          </button>
+        </div>
+
+        {loading && <p className="sm">Loading analytics...</p>}
+
+        {adminErr && <div className="err">{adminErr}</div>}
+
+        {!loading && stats && (
+          <>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                gap: '12px'
+              }}
+            >
+              {cards.map(([label, value]) => (
+                <div
+                  key={label}
+                  style={{
+                    border: '1px solid #dbe7f5',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    background: '#f8fbff'
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: '13px',
+                      color: '#6b7280',
+                      fontWeight: '600'
+                    }}
+                  >
+                    {label}
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: '30px',
+                      fontWeight: '800',
+                      color: '#17233f',
+                      marginTop: '6px'
+                    }}
+                  >
+                    {value ?? 0}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div
+              style={{
+                borderTop: '1px solid #dbe7f5',
+                marginTop: '20px',
+                paddingTop: '20px'
+              }}
+            >
+              <h3 style={{ marginBottom: '12px' }}>Last 7 days</h3>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                  gap: '12px'
+                }}
+              >
+                <div className="pill">
+                  Progress logs: {stats.progress_last_7_days ?? 0}
+                </div>
+
+                <div className="pill">
+                  Behavior entries: {stats.behavior_last_7_days ?? 0}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  )
+}
 export default function Main({ session }) {
   const uid = session.user.id
+  const [isAdmin, setIsAdmin] = useState(false)
+
+useEffect(() => {
+  async function checkAdmin() {
+    const r = await supabase.rpc('is_app_admin')
+    setIsAdmin(!r.error && r.data === true)
+  }
+
+  checkAdmin()
+}, [])
   const [kids, setKids] = useState([]), [cid, setCid] = useState(null), [tab, setTab] = useState('goals'), [err, setErr] = useState('')
   const [d, setD] = useState({ goals: [], logs: [], stos: [], beh: [], team: [], names: {} }), [nk, setNk] = useState('')
   const chk = r => { if (r.error) { setErr(r.error.message); return [] } return r.data || [] }
@@ -890,61 +1039,229 @@ export default function Main({ session }) {
     setNk(''); setErr(''); await loadKids(); setCid(r.data.id); setTab('goals')
   }
 
-  return (
-    <div>
-      <div className="row" style={{ alignItems: 'center' }}>
-        <div className="brand">
-  
-  <div className="brand-text">
-    <h1>StepTrack</h1>
-    <span>Progress, one step at a time.</span>
-  </div>
-</div>
-        <button className="x" style={{ flex: '0 0 auto' }} onClick={() => supabase.auth.signOut()}>Sign out</button>
+ return (
+  <div>
+    <div className="row" style={{ alignItems: 'center' }}>
+      <div className="brand">
+        <div className="brand-text">
+          <h1>StepTrack</h1>
+          <span>Progress, one step at a time.</span>
+        </div>
       </div>
-      {err && <div className="err">{err}</div>}
-      {!kid ? (
-        <>
-          <div className="card">
-            <h2>Add your first child</h2>
-            <label>First name or initials only</label>
-            <input value={nk} onChange={e => setNk(e.target.value)} />
-            <button className="btn" onClick={addKid}>Add child</button>
-          </div>
-          <Join onDone={joined} />
-        </>
-      ) : (
-        <>
-          <div className="row">
-            <div><label>Child</label>
-              <select value={cid} onChange={e => setCid(e.target.value)}>{kids.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}</select>
-            </div>
-            <div><label>Add another child</label>
-              <div className="row"><input value={nk} onChange={e => setNk(e.target.value)} placeholder="Name" /><button className="btn g" style={{ flex: '0 0 auto', marginBottom: 8 }} onClick={addKid}>Add</button></div>
-            </div>
-          </div>
-          <nav>{[['goals', 'Goals'], ['beh', 'Behavior'], ['rep', 'Report'], ['team', 'Team']].map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</nav>
-          {tab === 'goals' && <>
-            {d.goals.map(g => <GoalCard key={g.id} g={g} logs={d.logs} stos={d.stos.filter(o => o.goal_id === g.id)} names={d.names} uid={uid} parent={parent} canEdit={canGoals}
-              onAddSto={row => stoAdd(g.id, row)} onEditSto={stoEdit} onDelSto={stoDel}
-              onEdit={(id, patch) => run(supabase.from('goals').update(patch).eq('id', id))}
-              onLog={row => run(supabase.from('logs').insert({ ...row, child_id: cid }))}
-              onDelLog={id => run(supabase.from('logs').delete().eq('id', id))}
-              onDelGoal={id => run(supabase.from('goals').delete().eq('id', id))} />)}
-            {canGoals ? <AddGoal onAdd={row => run(supabase.from('goals').insert({ ...row, child_id: cid }))} />
-              : <p className="sm">Your role can log results but not create goals. Ask a parent or therapist to add goals.</p>}
-          </>}
-          {tab === 'beh' && <Behavior beh={d.beh} names={d.names} uid={uid} parent={parent}
-            onAdd={row => run(supabase.from('behavior_entries').insert({ ...row, child_id: cid }))}
-            onDel={id => run(supabase.from('behavior_entries').delete().eq('id', id))} />}
-          {tab === 'rep' && <Report kid={kid} goals={d.goals} logs={d.logs} beh={d.beh} />}
-          {tab === 'team' && <Team team={d.team} names={d.names} uid={uid} parent={parent} cid={cid} kid={kid} onJoin={joined}
-            onRevoke={id => run(supabase.from('memberships').delete().eq('id', id))}
-            onName={n => run(supabase.from('profiles').update({ display_name: n }).eq('id', uid))}
-            onDeleteChild={() => run(supabase.from('children').delete().eq('id', cid), loadKids)} />}
-        </>
-      )}
-      <p className="sm np">Use first names or initials only. Not a medical record.</p>
+
+      <button
+        className="x"
+        style={{ flex: '0 0 auto' }}
+        onClick={() => supabase.auth.signOut()}
+      >
+        Sign out
+      </button>
     </div>
-  )
+
+    {err && <div className="err">{err}</div>}
+
+    {!kid ? (
+      <>
+        <div className="card">
+          <h2>Add your first child</h2>
+          <label>First name or initials only</label>
+          <input value={nk} onChange={e => setNk(e.target.value)} />
+          <button className="btn" onClick={addKid}>
+            Add child
+          </button>
+        </div>
+
+        <Join onDone={joined} />
+      </>
+    ) : (
+      <>
+        <div className="row">
+          <div>
+            <label>Child</label>
+            <select
+              value={cid}
+              onChange={e => setCid(e.target.value)}
+            >
+              {kids.map(k => (
+                <option key={k.id} value={k.id}>
+                  {k.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label>Add another child</label>
+            <div className="row">
+              <input
+                value={nk}
+                onChange={e => setNk(e.target.value)}
+                placeholder="Name"
+              />
+              <button
+                className="btn g"
+                style={{ flex: '0 0 auto', marginBottom: 8 }}
+                onClick={addKid}
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <nav>
+          {[
+            ['goals', 'Goals'],
+            ['beh', 'Behavior'],
+            ['rep', 'Report'],
+            ['team', 'Team'],
+            ...(isAdmin ? [['admin', 'Admin']] : [])
+          ].map(([k, l]) => (
+            <button
+              key={k}
+              className={tab === k ? 'on' : ''}
+              onClick={() => setTab(k)}
+            >
+              {l}
+            </button>
+          ))}
+        </nav>
+
+        {tab === 'goals' && (
+          <>
+            {d.goals.map(g => (
+              <GoalCard
+                key={g.id}
+                g={g}
+                logs={d.logs}
+                stos={d.stos.filter(o => o.goal_id === g.id)}
+                names={d.names}
+                uid={uid}
+                parent={parent}
+                canEdit={canGoals}
+                onAddSto={row => stoAdd(g.id, row)}
+                onEditSto={stoEdit}
+                onDelSto={stoDel}
+                onEdit={(id, patch) =>
+                  run(supabase.from('goals').update(patch).eq('id', id))
+                }
+                onLog={row =>
+                  run(
+                    supabase.from('logs').insert({
+                      ...row,
+                      child_id: cid
+                    })
+                  )
+                }
+                onDelLog={id =>
+                  run(supabase.from('logs').delete().eq('id', id))
+                }
+                onDelGoal={id =>
+                  run(supabase.from('goals').delete().eq('id', id))
+                }
+              />
+            ))}
+
+            {canGoals ? (
+              <AddGoal
+                onAdd={row =>
+                  run(
+                    supabase.from('goals').insert({
+                      ...row,
+                      child_id: cid
+                    })
+                  )
+                }
+              />
+            ) : (
+              <p className="sm">
+                Your role can log results but not create goals. Ask a parent or
+                therapist to add goals.
+              </p>
+            )}
+          </>
+        )}
+
+        {tab === 'beh' && (
+          <Behavior
+            beh={d.beh}
+            names={d.names}
+            uid={uid}
+            parent={parent}
+            onAdd={row =>
+              run(
+                supabase.from('behavior_entries').insert({
+                  ...row,
+                  child_id: cid
+                })
+              )
+            }
+            onDel={id =>
+              run(
+                supabase
+                  .from('behavior_entries')
+                  .delete()
+                  .eq('id', id)
+              )
+            }
+          />
+        )}
+
+        {tab === 'rep' && (
+          <Report
+            kid={kid}
+            goals={d.goals}
+            logs={d.logs}
+            beh={d.beh}
+          />
+        )}
+
+        {tab === 'team' && (
+          <Team
+            team={d.team}
+            names={d.names}
+            uid={uid}
+            parent={parent}
+            cid={cid}
+            kid={kid}
+            onJoin={joined}
+            onRevoke={id =>
+              run(
+                supabase
+                  .from('memberships')
+                  .delete()
+                  .eq('id', id)
+              )
+            }
+            onName={n =>
+              run(
+                supabase
+                  .from('profiles')
+                  .update({ display_name: n })
+                  .eq('id', uid)
+              )
+            }
+            onDeleteChild={() =>
+              run(
+                supabase
+                  .from('children')
+                  .delete()
+                  .eq('id', cid),
+                loadKids
+              )
+            }
+          />
+        )}
+
+        {tab === 'admin' && isAdmin && (
+          <AdminDashboard onBack={() => setTab('goals')} />
+        )}
+      </>
+    )}
+
+    <p className="sm np">
+      Use first names or initials only. Not a medical record.
+    </p>
+  </div>
+)
 }
