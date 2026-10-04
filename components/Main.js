@@ -675,9 +675,101 @@ function Report({ kid, goals, logs, beh }) {
   return (
     <div className="card">
       <h2>Progress report: {kid.name}</h2><div className="sm">{today()} · for IEP meetings and therapy sessions</div>
-      <div className="w"><table><thead><tr><th>Goal</th><th>Target</th><th>Latest</th><th>Avg 5</th><th>Indep.</th><th>Status</th></tr></thead><tbody>
-        {R.map(r => <tr key={r.g.id}><td>{r.g.title}<div className="sm">{r.g.area} · {r.n} {r.n === 1 ? 'entry' : 'entries'}</div></td><td>{r.g.direction === 'down' ? '≤' : '≥'}{r.g.target} {r.g.unit}</td><td>{r.l}</td><td>{r.a}</td><td>{r.ind}</td><td>{r.st}</td></tr>)}
-      </tbody></table></div>
+      <div style={{ display: 'grid', gap: '12px', marginTop: '16px' }}>
+  {R.map(r => (
+    <div
+      key={r.g.id}
+      style={{
+        border: '1px solid #dbe7f5',
+        borderRadius: '16px',
+        padding: '16px',
+        background: '#f8fbff'
+      }}
+    >
+      <div style={{
+        fontSize: '17px',
+        fontWeight: '700',
+        color: '#17233f'
+      }}>
+        {r.g.title}
+      </div>
+
+      <div style={{
+        fontSize: '13px',
+        color: '#6b7280',
+        marginTop: '4px',
+        marginBottom: '16px'
+      }}>
+        {r.g.area} · {r.n} {r.n === 1 ? 'entry' : 'entries'}
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: '16px 12px'
+      }}>
+        <div>
+          <div style={{ fontSize: '11px', fontWeight: '700', color: '#6b7280' }}>
+            TARGET
+          </div>
+          <div style={{ marginTop: '4px' }}>
+            {r.g.direction === 'down' ? '≤' : '≥'}{r.g.target} {r.g.unit}
+          </div>
+        </div>
+
+        <div>
+          <div style={{ fontSize: '11px', fontWeight: '700', color: '#6b7280' }}>
+            LATEST
+          </div>
+          <div style={{ marginTop: '4px' }}>
+            {r.l}
+          </div>
+        </div>
+
+        <div>
+          <div style={{ fontSize: '11px', fontWeight: '700', color: '#6b7280' }}>
+            AVG. LAST 5
+          </div>
+          <div style={{ marginTop: '4px' }}>
+            {r.a}
+          </div>
+        </div>
+
+        <div>
+          <div style={{ fontSize: '11px', fontWeight: '700', color: '#6b7280' }}>
+            INDEPENDENCE
+          </div>
+          <div style={{ marginTop: '4px' }}>
+            {r.ind}
+          </div>
+        </div>
+      </div>
+
+      <div style={{
+        borderTop: '1px solid #e5edf7',
+        marginTop: '16px',
+        paddingTop: '12px'
+      }}>
+        <span style={{
+          fontSize: '11px',
+          fontWeight: '700',
+          color: '#6b7280'
+        }}>
+          STATUS
+        </span>
+
+        <div style={{
+          fontSize: '15px',
+          fontWeight: '600',
+          color: '#17233f',
+          marginTop: '4px'
+        }}>
+          {r.st}
+        </div>
+      </div>
+    </div>
+  ))}
+</div>
       <p><b>Behavior:</b> {b30.length} logged in the last 30 days.</p>
       {b5.map(e => <div className="sm" key={e.id}>{e.logged_on} · {e.intensity}: {e.antecedent} → {e.behavior} → {e.consequence}</div>)}
       <div className="np" style={{ marginTop: 10 }}>
