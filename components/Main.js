@@ -258,7 +258,78 @@ function Behavior({ beh, names, uid, parent, onAdd, onDel }) {
       <div className="card">
         <h2>Behavior log</h2><div className="sm">{n7} logged in the last 7 days</div>
         <label>Before (trigger or setting)</label><input value={f.a} onChange={set('a')} placeholder="Transition, loud noise" />
-        <label>Behavior</label><input value={f.b} onChange={set('b')} placeholder="Meltdown, hitting, refusal" />
+        <label>Behavior</label>
+<select value={f.b} onChange={set('b')}>
+  <option value="">Select a behavior...</option>
+
+  <optgroup label="Aggression">
+    <option value="Hitting">Hitting</option>
+    <option value="Kicking">Kicking</option>
+    <option value="Biting">Biting</option>
+    <option value="Pushing">Pushing</option>
+    <option value="Scratching">Scratching</option>
+    <option value="Throwing objects">Throwing objects</option>
+    <option value="Physical aggression">Other physical aggression</option>
+    <option value="Verbal aggression">Verbal aggression</option>
+  </optgroup>
+
+  <optgroup label="Self-Injurious Behavior">
+    <option value="Head banging">Head banging</option>
+    <option value="Self-hitting">Self-hitting</option>
+    <option value="Self-biting">Self-biting</option>
+    <option value="Skin picking">Skin picking</option>
+    <option value="Hair pulling">Hair pulling</option>
+  </optgroup>
+
+  <optgroup label="Task / Instruction">
+    <option value="Task refusal">Task refusal</option>
+    <option value="Noncompliance">Noncompliance</option>
+    <option value="Avoidance">Avoidance / escape</option>
+    <option value="Work avoidance">Work avoidance</option>
+    <option value="Leaving seat">Leaving seat</option>
+    <option value="Off-task behavior">Off-task behavior</option>
+  </optgroup>
+
+  <optgroup label="Emotional / Regulation">
+    <option value="Crying">Crying</option>
+    <option value="Yelling">Yelling / screaming</option>
+    <option value="Tantrum">Tantrum</option>
+    <option value="Meltdown">Meltdown</option>
+    <option value="Frustration">Frustration</option>
+    <option value="Withdrawal">Withdrawal / shutdown</option>
+  </optgroup>
+
+  <optgroup label="Safety / Movement">
+    <option value="Elopement">Elopement / running away</option>
+    <option value="Climbing">Unsafe climbing</option>
+    <option value="Dropping to floor">Dropping to floor</option>
+    <option value="Property destruction">Property destruction</option>
+  </optgroup>
+
+  <optgroup label="Social / Classroom">
+    <option value="Interrupting">Interrupting</option>
+    <option value="Inappropriate language">Inappropriate language</option>
+    <option value="Peer conflict">Peer conflict</option>
+    <option value="Difficulty with transitions">Difficulty with transitions</option>
+    <option value="Inappropriate touching">Inappropriate touching</option>
+  </optgroup>
+
+  <optgroup label="Repetitive / Sensory">
+    <option value="Repetitive behavior">Repetitive behavior</option>
+    <option value="Vocal stereotypy">Repetitive vocalization</option>
+    <option value="Sensory seeking">Sensory-seeking behavior</option>
+  </optgroup>
+
+  <option value="Other">Other / not listed</option>
+</select>
+
+{f.b === 'Other' && (
+  <input
+    value={f.otherBehavior || ''}
+    onChange={e => setF({ ...f, otherBehavior: e.target.value })}
+    placeholder="Describe behavior"
+  />
+)}
         <div className="row">
           <div><label>Intensity</label><select value={f.i} onChange={set('i')}><Opts a={['Mild', 'Moderate', 'Severe']} /></select></div>
           <div><label>Minutes</label><input type="number" value={f.m} onChange={set('m')} /></div>
@@ -266,9 +337,10 @@ function Behavior({ beh, names, uid, parent, onAdd, onDel }) {
         </div>
         <label>After / what helped</label><input value={f.c} onChange={set('c')} placeholder="Headphones and quiet corner" />
         <button className="btn" onClick={async () => {
-          if (!f.b.trim()) return
-          await onAdd({ antecedent: f.a.trim(), behavior: f.b.trim(), consequence: f.c.trim(), intensity: f.i, minutes: f.m === '' ? null : +f.m, setting: f.w })
-          setF({ ...f, a: '', b: '', c: '', m: '' })
+          const behavior = f.b === 'Other' ? (f.otherBehavior || '').trim() : f.b.trim()
+if (!behavior) return
+          await onAdd({ antecedent: f.a.trim(), behavior: behavior, consequence: f.c.trim(), intensity: f.i, minutes: f.m === '' ? null : +f.m, setting: f.w })
+          setF({ ...f, a: '', b: '', otherBehavior: '', c: '', m: '' })
         }}>Save entry</button>
       </div>
       {beh.slice().reverse().slice(0, 20).map(e => (
