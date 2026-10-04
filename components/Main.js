@@ -250,17 +250,82 @@ function AddGoal({ onAdd }) {
 }
 
 function Behavior({ beh, names, uid, parent, onAdd, onDel }) {
-  const [f, setF] = useState({ a: '', b: '', i: 'Mild', m: '', w: 'Home', c: '' })
+  const [f, setF] = useState({
+  a: '',
+  b: [],
+  i: 'Mild',
+  m: '',
+  w: 'School',
+  c: '',
+  otherBehavior: '',
+  otherAntecedent: '',
+  otherDuration: '',
+  otherWhere: '',
+  otherConsequence: ''
+})
   const set = k => e => setF({ ...f, [k]: e.target.value })
   const n7 = beh.filter(e => e.logged_on >= ago(7)).length
   return (
     <>
       <div className="card">
         <h2>Behavior log</h2><div className="sm">{n7} logged in the last 7 days</div>
-        <label>Before (trigger or setting)</label><input value={f.a} onChange={set('a')} placeholder="Transition, loud noise" />
+        <label>What happened before?</label>
+
+<select value={f.a} onChange={set('a')}>
+  <option value="">Select a trigger or setting...</option>
+
+  <optgroup label="Activities & Transitions">
+    <option value="Transition">Transition</option>
+    <option value="Preferred activity ended">Preferred activity ended</option>
+    <option value="Change in routine">Change in routine</option>
+    <option value="Unstructured time">Unstructured time</option>
+    <option value="Waiting">Waiting</option>
+  </optgroup>
+
+  <optgroup label="Tasks & Demands">
+    <option value="Task demand">Task demand</option>
+    <option value="Difficult task">Difficult task</option>
+    <option value="Non-preferred task">Non-preferred task</option>
+    <option value="Correction or redirection">Correction or redirection</option>
+  </optgroup>
+
+  <optgroup label="Social">
+    <option value="Peer interaction">Peer interaction</option>
+    <option value="Adult interaction">Adult interaction</option>
+    <option value="Attention removed">Attention removed</option>
+    <option value="Denied access">Denied access</option>
+  </optgroup>
+
+  <optgroup label="Environment">
+    <option value="Loud environment">Loud environment</option>
+    <option value="Crowded environment">Crowded environment</option>
+    <option value="Unexpected event">Unexpected event</option>
+  </optgroup>
+
+  <option value="No clear trigger">No clear trigger / unknown</option>
+  <option value="Other">Other / not listed</option>
+</select>
+
+{f.a === 'Other' && (
+  <input
+    value={f.otherAntecedent}
+    onChange={e =>
+      setF({ ...f, otherAntecedent: e.target.value })
+    }
+    placeholder="Describe what happened before"
+  />
+)}
         <label>Behavior</label>
-<select value={f.b} onChange={set('b')}>
-  <option value="">Select a behavior...</option>
+<select
+  multiple
+  value={f.b}
+  onChange={e =>
+    setF({
+      ...f,
+      b: Array.from(e.target.selectedOptions, option => option.value)
+    })
+  }
+>
 
   <optgroup label="Aggression">
     <option value="Hitting">Hitting</option>
@@ -333,23 +398,265 @@ function Behavior({ beh, names, uid, parent, onAdd, onDel }) {
         <div className="row">
           <div><label>Intensity</label><select value={f.i} onChange={set('i')}><Opts a={['Mild', 'Moderate', 'Severe']} /></select></div>
           <div><label>Minutes</label><input type="number" value={f.m} onChange={set('m')} /></div>
-          <div><label>Where</label><select value={f.w} onChange={set('w')}><Opts a={WH} /></select></div>
+          <div><label>Where</label>
+<select value={f.w} onChange={set('w')}>
+  <option value="">Select a location...</option>
+
+  <optgroup label="School">
+    <option value="Classroom">Classroom</option>
+    <option value="Playground / Recess">Playground / Recess</option>
+    <option value="Cafeteria">Cafeteria</option>
+    <option value="Bathroom">Bathroom</option>
+    <option value="Hallway">Hallway</option>
+  </optgroup>
+
+  <optgroup label="Other Settings">
+    <option value="Home">Home</option>
+    <option value="Therapy / Clinic">Therapy / Clinic</option>
+    <option value="Community">Community</option>
+    <option value="Transportation">Transportation</option>
+  </optgroup>
+
+  <option value="Other">Other / not listed</option>
+</select>
+
+{f.w === 'Other' && (
+  <input
+    value={f.otherWhere || ''}
+    onChange={e => setF({ ...f, otherWhere: e.target.value })}
+    placeholder="Describe location"
+  />
+)}
+</div>
         </div>
-        <label>After / what helped</label><input value={f.c} onChange={set('c')} placeholder="Headphones and quiet corner" />
+        <label>After / what helped</label>
+<select value={f.c} onChange={set('c')}>
+  <option value="">Select what helped...</option>
+
+  <optgroup label="Breaks & Regulation">
+    <option value="Break">Break</option>
+    <option value="Sensory break">Sensory break</option>
+    <option value="Movement break">Movement break</option>
+    <option value="Quiet area">Quiet area</option>
+    <option value="Headphones">Headphones</option>
+    <option value="Calming strategy">Calming strategy</option>
+  </optgroup>
+
+  <optgroup label="Prompts & Supports">
+    <option value="Verbal prompt">Verbal prompt</option>
+    <option value="Visual support">Visual support</option>
+    <option value="Redirection">Redirection</option>
+    <option value="First / Then support">First / Then support</option>
+    <option value="Choice offered">Choice offered</option>
+    <option value="Adult support">Adult support</option>
+    <option value="Peer support">Peer support</option>
+  </optgroup>
+
+  <optgroup label="Task / Environment">
+    <option value="Task modified">Task modified</option>
+    <option value="Demand reduced">Demand reduced</option>
+    <option value="Demand removed">Demand removed</option>
+    <option value="Changed environment">Changed environment</option>
+  </optgroup>
+
+  <optgroup label="Reinforcement">
+    <option value="Preferred item / activity">Preferred item / activity</option>
+    <option value="Token / reward system">Token / reward system</option>
+    <option value="Praise / positive reinforcement">Praise / positive reinforcement</option>
+  </optgroup>
+
+  <optgroup label="Other Responses">
+    <option value="Planned ignoring">Planned ignoring</option>
+    <option value="No intervention needed">No intervention needed</option>
+  </optgroup>
+
+  <option value="Other">Other / not listed</option>
+</select>
+
+{f.c === 'Other' && (
+  <input
+    value={f.otherConsequence || ''}
+    onChange={e => setF({ ...f, otherConsequence: e.target.value })}
+    placeholder="Describe what helped"
+  />
+)}
         <button className="btn" onClick={async () => {
-          const behavior = f.b === 'Other' ? (f.otherBehavior || '').trim() : f.b.trim()
-if (!behavior) return
-          await onAdd({ antecedent: f.a.trim(), behavior: behavior, consequence: f.c.trim(), intensity: f.i, minutes: f.m === '' ? null : +f.m, setting: f.w })
-          setF({ ...f, a: '', b: '', otherBehavior: '', c: '', m: '' })
-        }}>Save entry</button>
+          const behaviors = f.b.includes('Other')
+  ? [...f.b.filter(b => b !== 'Other'), f.otherBehavior.trim()].filter(Boolean)
+  : f.b;
+
+const where = f.w === 'Other' ? (f.otherWhere || '').trim() : f.w;
+const consequence = f.c === 'Other' ? (f.otherConsequence || '').trim() : f.c;
+
+if (behaviors.length === 0) return;
+
+await onAdd({
+  antecedent: f.a.trim(),
+  behavior: behaviors.join(', '),
+  consequence,
+  intensity: f.i,
+  minutes: f.m,
+  setting: where
+});
+
+setF({
+  ...f,
+  a: '',
+  b: [],
+  m: '',
+  c: '',
+  otherBehavior: '',
+  otherAntecedent: '',
+  otherDuration: '',
+  otherWhere: '',
+  otherConsequence: ''
+});
+}}>Save entry</button>
+        
       </div>
-      {beh.slice().reverse().slice(0, 20).map(e => (
-        <div className="card" key={e.id}>
-          <div className="sm">{e.logged_on} · {e.intensity}{e.minutes ? ` · ${e.minutes} min` : ''} · {e.setting} · {names[e.logged_by] || 'Member'}{' '}
-            {(e.logged_by === uid || parent) && <button className="x" onClick={() => onDel(e.id)}>remove</button>}</div>
-          <b>Before:</b> {e.antecedent}<br /><b>Behavior:</b> {e.behavior}<br /><b>After / helped:</b> {e.consequence}
+      {beh.slice().reverse().slice(0, 20).map(e => {
+  const behaviorList = (e.behavior || '')
+    .split(',')
+    .map(b => b.trim())
+    .filter(Boolean);
+
+  return (
+    <div
+      className="card"
+      key={e.id}
+      style={{
+        padding: '18px',
+        marginBottom: '14px',
+        borderRadius: '16px'
+      }}
+    >
+      {/* Date + Remove */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '10px',
+          marginBottom: '6px'
+        }}
+      >
+        <div style={{ fontSize: '13px', color: '#6b7280' }}>
+          {e.logged_on}
         </div>
-      ))}
+
+        {(e.logged_by === uid || parent) && (
+  <button
+    onClick={() => onDel(e.id)}
+    title="Remove entry"
+    aria-label="Remove entry"
+    style={{
+      background: 'transparent',
+      border: 'none',
+      padding: '6px',
+      cursor: 'pointer',
+      fontSize: '20px',
+      lineHeight: 1,
+      flexShrink: 0
+    }}
+  >
+    🗑️
+  </button>
+)}
+      </div>
+
+      {/* Person who logged it */}
+      <div
+        style={{
+          fontSize: '13px',
+          color: '#6b7280',
+          marginBottom: '12px'
+        }}
+      >
+        Logged by: {names[e.logged_by] || 'Unknown'}
+      </div>
+
+      {/* Behaviors */}
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '7px',
+          marginBottom: '14px'
+        }}
+      >
+        {behaviorList.map((behavior, index) => (
+          <span
+            key={`${behavior}-${index}`}
+            style={{
+              background: '#e8f2ff',
+              color: '#1769aa',
+              padding: '6px 10px',
+              borderRadius: '999px',
+              fontSize: '13px',
+              fontWeight: '600'
+            }}
+          >
+            {behavior}
+          </span>
+        ))}
+      </div>
+
+      {/* Incident details */}
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '8px',
+          marginBottom: '16px'
+        }}
+      >
+        <span className="pill">⚡ {e.intensity || 'No intensity'}</span>
+
+{e.minutes && (
+  <span className="pill">⏱ {e.minutes} min</span>
+)}
+
+{e.setting && (
+  <span className="pill">📍 {e.setting}</span>
+)}
+      </div>
+
+      {/* Before */}
+      <div style={{ marginBottom: '12px' }}>
+        <div
+          style={{
+            fontSize: '11px',
+            fontWeight: '700',
+            color: '#6b7280',
+            letterSpacing: '.06em',
+            marginBottom: '3px'
+          }}
+        >
+          BEFORE
+        </div>
+
+        <div>{e.antecedent || 'Not recorded'}</div>
+      </div>
+
+      {/* What helped */}
+      <div>
+        <div
+          style={{
+            fontSize: '11px',
+            fontWeight: '700',
+            color: '#6b7280',
+            letterSpacing: '.06em',
+            marginBottom: '3px'
+          }}
+        >
+          WHAT HELPED
+        </div>
+
+        <div>{e.consequence || 'Not recorded'}</div>
+      </div>
+    </div>
+  );
+})}
     </>
   )
 }
