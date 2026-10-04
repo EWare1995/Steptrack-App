@@ -1,22 +1,308 @@
-:root{--bg:#f7f5f0;--card:#fff;--tx:#1f2933;--mu:#6b7280;--ac:#2f7d6d;--bd:#e4e0d8;--bad:#b42318}
-@media(prefers-color-scheme:dark){:root{--bg:#15181a;--card:#1e2325;--tx:#e8ecec;--mu:#9aa5a8;--ac:#5fc2ae;--bd:#2f3639;--bad:#f97066}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
-main{max-width:700px;margin:0 auto;padding:16px}
-h1{font-size:22px;margin:0 0 8px}h2{font-size:17px;margin:0 0 6px}
-nav{display:flex;gap:6px;margin:12px 0}
-nav button{flex:1;padding:10px 4px;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;font:inherit;cursor:pointer}
-nav button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
-.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:12px}
-.tag{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;background:var(--bg);border:1px solid var(--bd);color:var(--mu)}
-.bar{height:8px;background:var(--bg);border-radius:99px;overflow:hidden;margin:8px 0}.bar i{display:block;height:100%;background:var(--ac)}
-input,select,textarea{width:100%;padding:10px;margin:4px 0 8px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
-label{font-size:13px;color:var(--mu)}
-.btn{padding:10px 14px;border:0;border-radius:8px;background:var(--ac);color:#fff;font:inherit;cursor:pointer}
-.btn.g{background:transparent;color:var(--ac);border:1px solid var(--ac)}
-.row{display:flex;gap:8px;align-items:flex-end}.row>*{flex:1;min-width:0}
-svg{width:100%;height:60px;display:block}.sm{font-size:13px;color:var(--mu)}
-.x{background:none;border:0;color:var(--ac);cursor:pointer;font:inherit;font-size:13px;padding:0}
-.err{color:var(--bad);font-size:14px;margin:8px 0}
-.w{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}td,th{border-bottom:1px solid var(--bd);padding:6px;text-align:left}
-@media print{nav,.np{display:none}body{background:#fff;color:#000}}
+:root {
+  --bg: #f5f9ff;
+  --card: #ffffff;
+  --tx: #17233c;
+  --mu: #6b7a90;
+  --ac: #1677f2;
+  --ac2: #55c7f3;
+  --bd: #dbe7f5;
+  --bad: #dc3545;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top right, #e5f4ff 0, transparent 32%),
+    var(--bg);
+  color: var(--tx);
+  font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+}
+
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+}
+
+h1 {
+  margin: 0 0 10px;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: #17345f;
+}
+
+h2 {
+  color: #17345f;
+}
+
+p {
+  line-height: 1.55;
+}
+
+/* Main navigation */
+nav {
+  display: flex;
+  gap: 10px;
+  margin: 18px 0;
+  padding: 6px;
+  background: #edf5ff;
+  border: 1px solid var(--bd);
+  border-radius: 16px;
+}
+
+nav button {
+  flex: 1;
+  padding: 11px 8px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: #62738a;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+nav button:hover {
+  background: #ffffff;
+  color: var(--ac);
+}
+
+nav button.on {
+  background: linear-gradient(135deg, var(--ac2), var(--ac));
+  color: #ffffff;
+  box-shadow: 0 5px 14px rgba(22, 119, 242, 0.22);
+}
+
+/* Cards */
+.card {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--bd);
+  border-radius: 18px;
+  padding: 18px;
+  margin-bottom: 14px;
+  box-shadow: 0 8px 24px rgba(32, 82, 140, 0.07);
+}
+
+/* Labels / goal type */
+.tag {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: #35618d;
+  background: #edf6ff;
+  border: 1px solid #d6e9fb;
+}
+
+/* Progress bar */
+.bar {
+  height: 9px;
+  background: #e8f0f8;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 10px 0;
+}
+
+.bar > div {
+  background: linear-gradient(90deg, var(--ac2), var(--ac));
+}
+
+/* Forms */
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 11px 12px;
+  margin: 5px 0 9px;
+  border: 1px solid #d4e0ee;
+  border-radius: 11px;
+  background: #ffffff;
+  color: var(--tx);
+  font: inherit;
+  outline: none;
+  transition: 0.2s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #55aaf7;
+  box-shadow: 0 0 0 3px rgba(22, 119, 242, 0.10);
+}
+
+label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mu);
+}
+
+/* Buttons */
+.btn {
+  padding: 10px 15px;
+  border: 0;
+  border-radius: 11px;
+  background: linear-gradient(135deg, var(--ac2), var(--ac));
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(22, 119, 242, 0.18);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(22, 119, 242, 0.25);
+}
+
+.btn.g {
+  background: #ffffff;
+  color: var(--ac);
+  border: 1px solid #a8cef5;
+  box-shadow: none;
+}
+
+/* Rows */
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.row > * {
+  flex: 1;
+  min-width: 0;
+}
+
+.sm {
+  font-size: 13px;
+  color: var(--mu);
+}
+
+/* Existing clickable text */
+.x {
+  background: none;
+  border: 0;
+  color: var(--ac);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.err {
+  color: var(--bad);
+  font-size: 14px;
+  margin: 8px 0;
+}
+
+.w {
+  overflow-x: auto;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+/* Mobile / installed StepTrack app */
+@media (max-width: 600px) {
+  main {
+    padding: 22px 16px 50px;
+  }
+
+  h1 {
+    font-size: 26px;
+  }
+
+  nav {
+    gap: 5px;
+    padding: 5px;
+  }
+
+  nav button {
+    padding: 10px 4px;
+    font-size: 13px;
+  }
+
+  .card {
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  .row {
+    gap: 8px;
+  }
+}
+
+@media print {
+  nav,
+  .np {
+    display: none;
+  }
+
+  body {
+    background: #ffffff;
+    color: #000000;
+  }
+
+  .card {
+    box-shadow: none;
+  }
+}
+/* StepTrack branded header */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.brand-logo {
+  width: 58px;
+  height: 58px;
+  object-fit: cover;
+  border-radius: 15px;
+  box-shadow: 0 5px 14px rgba(22, 119, 242, 0.14);
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-text h1 {
+  margin: 0;
+  font-size: 27px;
+  line-height: 1.1;
+  color: #17345f;
+}
+
+.brand-text span {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7a90;
+}
+
+@media (max-width: 600px) {
+  .brand-logo {
+    width: 50px;
+    height: 50px;
+    border-radius: 13px;
+  }
+
+  .brand-text h1 {
+    font-size: 23px;
+  }
+
+  .brand-text span {
+    font-size: 11px;
+  }
+}

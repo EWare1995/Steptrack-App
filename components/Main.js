@@ -422,7 +422,13 @@ export default function Main({ session }) {
   return (
     <div>
       <div className="row" style={{ alignItems: 'center' }}>
-        <h1>StepTrack</h1>
+        <div className="brand">
+  
+  <div className="brand-text">
+    <h1>StepTrack</h1>
+    <span>Progress, one step at a time.</span>
+  </div>
+</div>
         <button className="x" style={{ flex: '0 0 auto' }} onClick={() => supabase.auth.signOut()}>Sign out</button>
       </div>
       {err && <div className="err">{err}</div>}
