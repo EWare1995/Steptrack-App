@@ -862,15 +862,21 @@ function AdminDashboard({ onBack }) {
   }, [loadStats])
 
   const cards = stats ? [
-    ['Users', stats.total_users],
-    ['Children', stats.total_children],
-    ['Goals', stats.total_goals],
-    ['STOs', stats.total_stos],
-    ['Progress logs', stats.total_progress_logs],
-    ['Behavior entries', stats.total_behavior_entries],
-    ['Team memberships', stats.total_memberships],
-    ['Invites', stats.total_invites]
-  ] : []
+  ['Users', stats.total_users],
+  ['Children', stats.total_children],
+  ['Goals', stats.total_goals],
+  ['STOs', stats.total_stos],
+  ['Progress logs', stats.total_progress_logs],
+  ['Behavior entries', stats.total_behavior_entries],
+  ['Team memberships', stats.total_memberships],
+  ['Invites', stats.total_invites],
+  ['New users · 7 days', stats.new_users_last_7_days],
+  ['New users · 30 days', stats.new_users_last_30_days],
+  ['Progress · 7 days', stats.progress_last_7_days],
+  ['Progress · 30 days', stats.progress_last_30_days],
+  ['Behavior · 7 days', stats.behavior_last_7_days],
+  ['Behavior · 30 days', stats.behavior_last_30_days],
+] : []
 
   return (
     <>
@@ -903,73 +909,104 @@ function AdminDashboard({ onBack }) {
         {adminErr && <div className="err">{adminErr}</div>}
 
         {!loading && stats && (
-          <>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                gap: '12px'
-              }}
-            >
-              {cards.map(([label, value]) => (
-                <div
-                  key={label}
-                  style={{
-                    border: '1px solid #dbe7f5',
-                    borderRadius: '16px',
-                    padding: '16px',
-                    background: '#f8fbff'
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: '13px',
-                      color: '#6b7280',
-                      fontWeight: '600'
-                    }}
-                  >
-                    {label}
-                  </div>
+          <><div>
+  <h3 style={{ marginTop: '4px', marginBottom: '12px' }}>
+    Platform totals
+  </h3>
 
-                  <div
-                    style={{
-                      fontSize: '30px',
-                      fontWeight: '800',
-                      color: '#17233f',
-                      marginTop: '6px'
-                    }}
-                  >
-                    {value ?? 0}
-                  </div>
-                </div>
-              ))}
-            </div>
+  <div
+    style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+      gap: '12px'
+    }}
+  >
+    {cards.slice(0, 8).map(([label, value]) => (
+      <div
+        key={label}
+        style={{
+          border: '1px solid #dbe7f5',
+          borderRadius: '16px',
+          padding: '16px',
+          background: '#f8fbff'
+        }}
+      >
+        <div
+          style={{
+            fontSize: '13px',
+            color: '#6b7280',
+            fontWeight: '600'
+          }}
+        >
+          {label}
+        </div>
 
-            <div
-              style={{
-                borderTop: '1px solid #dbe7f5',
-                marginTop: '20px',
-                paddingTop: '20px'
-              }}
-            >
-              <h3 style={{ marginBottom: '12px' }}>Last 7 days</h3>
+        <div
+          style={{
+            fontSize: '30px',
+            fontWeight: '800',
+            color: '#17233f',
+            marginTop: '6px'
+          }}
+        >
+          {value ?? 0}
+        </div>
+      </div>
+    ))}
+  </div>
 
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                  gap: '12px'
-                }}
-              >
-                <div className="pill">
-                  Progress logs: {stats.progress_last_7_days ?? 0}
-                </div>
+  <h3
+    style={{
+      marginTop: '28px',
+      marginBottom: '12px'
+    }}
+  >
+    Recent activity
+  </h3>
 
-                <div className="pill">
-                  Behavior entries: {stats.behavior_last_7_days ?? 0}
-                </div>
-              </div>
-            </div>
+  <div
+    style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+      gap: '12px'
+    }}
+  >
+    {cards.slice(8).map(([label, value]) => (
+      <div
+        key={label}
+        style={{
+          border: '1px solid #dbe7f5',
+          borderRadius: '16px',
+          padding: '16px',
+          background: '#f8fbff'
+        }}
+      >
+        <div
+          style={{
+            fontSize: '13px',
+            color: '#6b7280',
+            fontWeight: '600'
+          }}
+        >
+          {label}
+        </div>
+
+        <div
+          style={{
+            fontSize: '30px',
+            fontWeight: '800',
+            color: '#17233f',
+            marginTop: '6px'
+          }}
+        >
+          {value ?? 0}
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
+
+            
           </>
         )}
       </div>
