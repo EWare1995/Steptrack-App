@@ -840,19 +840,29 @@ function AdminDashboard({ onBack }) {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [adminErr, setAdminErr] = useState('')
+  const [users, setUsers] = useState([])
 
   const loadStats = useCallback(async () => {
     setLoading(true)
     setAdminErr('')
 
     const r = await supabase.rpc('admin_dashboard_stats')
+    const u = await supabase.rpc('admin_user_management')
 
     if (r.error) {
       setAdminErr(r.error.message)
       setStats(null)
+      setUsers([])
     } else {
       setStats(r.data)
-    }
+      if (u.error) {
+    setAdminErr(u.error.message)
+    setUsers([])
+  } else {
+    setUsers(Array.isArray(u.data) ? u.data : [])
+  }
+}
+   
 
     setLoading(false)
   }, [])
@@ -1004,6 +1014,156 @@ function AdminDashboard({ onBack }) {
       </div>
     ))}
   </div>
+  <h3
+  style={{
+    marginTop: '28px',
+    marginBottom: '12px'
+  }}
+>
+  Users
+</h3>
+
+<div
+  style={{
+    display: 'grid',
+    gap: '12px'
+  }}
+>
+  {users.length === 0 ? (
+    <div
+      style={{
+        border: '1px solid #dbe7f5',
+        borderRadius: '16px',
+        padding: '16px',
+        background: '#f8fbff',
+        color: '#6b7280'
+      }}
+    >
+      No users found.
+    </div>
+  ) : (
+  users.map((user) => (
+  <div
+    key={user.id}
+    style={{
+      border: '1px solid #dbe7f5',
+      borderRadius: '16px',
+      padding: '16px',
+      background: '#f8fbff'
+    }}
+  >
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        gap: '12px'
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontSize: '16px',
+            fontWeight: '800',
+            color: '#17233f'
+          }}
+        >
+          {user.display_name || 'Unnamed user'}
+        </div>
+
+        <div
+          style={{
+            marginTop: '4px',
+            color: '#6b7280'
+          }}
+        >
+          {user.email}
+        </div>
+      </div>
+
+      <span
+        style={{
+          fontSize: '11px',
+          fontWeight: '800',
+          padding: '6px 10px',
+          borderRadius: '999px',
+          background: user.is_admin ? '#dbeafe' : '#f3f4f6',
+          color: user.is_admin ? '#1d4ed8' : '#6b7280',
+          whiteSpace: 'nowrap'
+        }}
+      >
+        {user.is_admin ? 'OWNER / ADMIN' : 'STANDARD USER'}
+      </span>
+    </div>
+
+    <div
+      style={{
+        marginTop: '10px',
+        color: '#6b7280'
+      }}
+    >
+      Joined:{' '}
+      {user.created_at
+        ? new Date(user.created_at).toLocaleDateString()
+        : 'Unknown'}
+    </div>
+
+    <div
+      style={{
+        marginTop: '6px',
+        color: '#6b7280',
+        fontWeight: '600'
+      }}
+    >
+      Memberships: {user.membership_count ?? 0}
+    </div>
+
+    {Array.isArray(user.memberships) && user.memberships.length > 0 ? (
+      user.memberships.map((membership) => (
+        <div
+          key={membership.membership_id}
+          style={{
+            marginTop: '12px',
+            padding: '12px',
+            borderRadius: '12px',
+            background: '#ffffff',
+            border: '1px solid #e5edf7'
+          }}
+        >
+          <div
+            style={{
+              fontWeight: '700',
+              color: '#17233f',
+              marginBottom: '8px'
+            }}
+          >
+            Child access · {membership.role}
+          </div>
+
+          <div style={{ marginTop: '4px' }}>
+            {membership.can_log ? '✓' : '—'} Can log progress
+          </div>
+
+          <div style={{ marginTop: '4px' }}>
+            {membership.can_edit_goals ? '✓' : '—'} Can edit goals
+          </div>
+        </div>
+      ))
+    ) : (
+      <div
+        style={{
+          marginTop: '12px',
+          color: '#6b7280',
+          fontStyle: 'italic'
+        }}
+      >
+        No child memberships
+      </div>
+    )}
+  </div>
+))
+  )}
+</div>
 </div>
 
             
