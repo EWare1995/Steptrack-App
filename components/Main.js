@@ -120,12 +120,17 @@ function StoForm({ init, submitLabel, onSave, onCancel }) {
 
 function StoSection({ stos, canEdit, onAdd, onEdit, onDel }) {
   const [adding, setAdding] = useState(false), [editId, setEditId] = useState(null), [delId, setDelId] = useState(null)
+  const [showAllStos, setShowAllStos] = useState(false)
+
+const visibleStos = showAllStos
+  ? stos
+  : stos.slice(0, 3)
   if (!stos.length && !canEdit) return null
   const sel = { width: 'auto', margin: 0, padding: '4px 8px', fontSize: 13 }
   return (
     <div style={{ marginTop: 10 }}>
       <div className="sm"><b>Short-term objectives</b></div>
-      {stos.map(o => editId === o.id ? (
+      {visibleStos.map(o => editId === o.id ? (
         <StoForm key={o.id} init={stoToForm(o)} submitLabel="Save changes" onCancel={() => setEditId(null)}
           onSave={async row => { if (await onEdit(o.id, row)) setEditId(null) }} />
       ) : (
@@ -145,6 +150,27 @@ function StoSection({ stos, canEdit, onAdd, onEdit, onDel }) {
           </div>
         </div>
       ))}
+      {stos.length > 3 && (
+  <button
+    type="button"
+    onClick={() => setShowAllStos(!showAllStos)}
+    style={{
+      width: '100%',
+      marginTop: '10px',
+      padding: '10px',
+      border: 'none',
+      background: 'transparent',
+      color: '#2563eb',
+      fontSize: '14px',
+      fontWeight: '700',
+      cursor: 'pointer'
+    }}
+  >
+    {showAllStos
+      ? 'Show less'
+      : `View all ${stos.length} objectives`}
+  </button>
+)}
       {canEdit && (adding
         ? <StoForm init={blankSto} submitLabel="Add objective" onCancel={() => setAdding(false)} onSave={async row => { if (await onAdd(row)) setAdding(false) }} />
         : <div style={{ marginTop: 8 }}><button className="btn g" onClick={() => setAdding(true)}>Add objective</button></div>)}
@@ -156,6 +182,11 @@ function GoalCard({ g, logs, stos = [], names, uid, parent, canEdit, onEdit, onA
   const v = gv(g, logs), r = v.slice(-5), last = v[v.length - 1]
   const ind = r.filter(x => x.prompt_level === 'Independent').length
   const [f, setF] = useState({ value: '', date: today(), p: 'Independent', w: 'Home', n: '' }), [c, setC] = useState(false), [ed, setEd] = useState(null)
+  const [showAllLogs, setShowAllLogs] = useState(false)
+
+const visibleLogs = showAllLogs
+  ? v.slice().reverse()
+  : v.slice(-3).reverse()
   const se = k => e => setEd({ ...ed, [k]: e.target.value })
   const set = k => e => setF({ ...f, [k]: e.target.value })
   return (
@@ -184,12 +215,33 @@ function GoalCard({ g, logs, stos = [], names, uid, parent, canEdit, onEdit, onA
           setF({ ...f, value: '', n: '' })
         }}>Log</button>
       </div>
-      {v.slice(-3).reverse().map(x => (
+      {visibleLogs.map(x => (
         <div className="sm" key={x.id}>
           {x.logged_on} · {x.value} · {x.prompt_level} · {x.setting} · {names[x.logged_by] || 'Member'}{x.note ? ' · ' + x.note : ''}{' '}
           {(x.logged_by === uid || parent) && <button className="x" onClick={() => onDelLog(x.id)}>remove</button>}
         </div>
       ))}
+      {v.length > 3 && (
+  <button
+    type="button"
+    onClick={() => setShowAllLogs(!showAllLogs)}
+    style={{
+      width: '100%',
+      marginTop: '10px',
+      padding: '10px',
+      border: 'none',
+      background: 'transparent',
+      color: '#2563eb',
+      fontSize: '14px',
+      fontWeight: '700',
+      cursor: 'pointer'
+    }}
+  >
+    {showAllLogs
+      ? 'Show less'
+      : `View all ${v.length} entries`}
+  </button>
+)}
       {canEdit && !ed && <div style={{ marginTop: 8 }}>
         <button className="btn g" onClick={() => setEd({ title: g.title, target: g.target, baseline: g.baseline ?? '', unit: g.unit, mastery: g.mastery_count, supports: g.supports })}>Edit goal</button>
       </div>}
@@ -662,6 +714,7 @@ setF({
 }
 
 function Report({ kid, goals, logs, beh }) {
+  const [showAllBehavior, setShowAllBehavior] = useState(false)
   const R = goals.map(g => {
     const v = gv(g, logs), r = v.slice(-5)
     const a = r.length ? (r.reduce((s, x) => s + x.value, 0) / r.length).toFixed(1) : '-'
@@ -669,6 +722,9 @@ function Report({ kid, goals, logs, beh }) {
     return { g, l: v.length ? v[v.length - 1].value : '-', a, ind, st: status(g, v), n: v.length }
   })
   const b30 = beh.filter(e => e.logged_on >= ago(30)), b5 = beh.slice(-5)
+  const visibleBehaviors = showAllBehavior
+  ? b5.slice().reverse()
+  : b5.slice(-3).reverse()
   const txt = `Progress report: ${kid.name} (${today()})\n\n` +
     (R.map(r => `${r.g.title} [${r.g.area}] target ${r.g.direction === 'down' ? '<=' : '>='}${r.g.target} ${r.g.unit}; latest ${r.l}; avg last 5 ${r.a}; independent ${r.ind}; ${r.st}${r.g.supports ? '; supports: ' + r.g.supports : ''}`).join('\n') || 'No goals') +
     `\n\nBehavior: ${b30.length} logged in 30 days\n` + b5.map(e => `${e.logged_on} ${e.intensity}: ${e.antecedent} -> ${e.behavior} -> ${e.consequence}`).join('\n')
@@ -770,12 +826,189 @@ function Report({ kid, goals, logs, beh }) {
     </div>
   ))}
 </div>
-      <p><b>Behavior:</b> {b30.length} logged in the last 30 days.</p>
-      {b5.map(e => <div className="sm" key={e.id}>{e.logged_on} · {e.intensity}: {e.antecedent} → {e.behavior} → {e.consequence}</div>)}
-      <div className="np" style={{ marginTop: 10 }}>
-        <button className="btn" onClick={() => navigator.clipboard?.writeText(txt)}>Copy as text</button>{' '}
-        <button className="btn g" onClick={() => window.print()}>Print</button>
+      <div style={{ marginTop: '24px' }}>
+  <div style={{
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '12px',
+    marginBottom: '6px'
+  }}>
+    <div style={{
+      fontSize: '18px',
+      fontWeight: '700',
+      color: '#17233f'
+    }}>
+      Behavior Summary
+    </div>
+
+    <div style={{
+      fontSize: '12px',
+      fontWeight: '700',
+      color: '#2563eb',
+      background: '#eff6ff',
+      padding: '5px 9px',
+      borderRadius: '999px',
+      whiteSpace: 'nowrap'
+    }}>
+      {b30.length} {b30.length === 1 ? 'entry' : 'entries'}
+    </div>
+  </div>
+
+  <div style={{
+    fontSize: '13px',
+    color: '#718096',
+    marginBottom: '14px'
+  }}>
+    Last 30 days
+  </div>
+
+  <div style={{
+    display: 'grid',
+    gap: '10px'
+  }}>
+    {visibleBehaviors.map(e => (
+      <div
+        key={e.id}
+        style={{
+          border: '1px solid #e5edf7',
+          borderRadius: '14px',
+          padding: '14px',
+          background: '#ffffff'
+        }}
+      >
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '10px',
+          marginBottom: '12px'
+        }}>
+          <div style={{
+            fontSize: '12px',
+            fontWeight: '700',
+            color: '#718096'
+          }}>
+            {e.logged_on}
+          </div>
+
+          <div style={{
+            fontSize: '11px',
+            fontWeight: '700',
+            textTransform: 'uppercase',
+            letterSpacing: '.04em',
+            padding: '4px 8px',
+            borderRadius: '999px',
+            background:
+              e.intensity === 'Severe'
+                ? '#fff1f2'
+                : e.intensity === 'Moderate'
+                  ? '#fff7ed'
+                  : '#f0fdf4',
+            color:
+              e.intensity === 'Severe'
+                ? '#be123c'
+                : e.intensity === 'Moderate'
+                  ? '#c2410c'
+                  : '#15803d'
+          }}>
+            {e.intensity}
+          </div>
+        </div>
+
+        <div style={{
+          display: 'grid',
+          gap: '9px',
+          fontSize: '14px'
+        }}>
+          <div>
+            <span style={{ fontWeight: '700', color: '#64748b' }}>
+              Trigger
+            </span>
+            <div style={{ marginTop: '2px', color: '#17233f' }}>
+              {e.antecedent || 'Not Recorded'}
+            </div>
+          </div>
+
+          <div>
+            <span style={{ fontWeight: '700', color: '#64748b' }}>
+              Behavior
+            </span>
+            <div style={{ marginTop: '2px', color: '#17233f' }}>
+              {e.behavior || '—'}
+            </div>
+          </div>
+
+          <div>
+            <span style={{ fontWeight: '700', color: '#64748b' }}>
+              Response
+            </span>
+            <div style={{ marginTop: '2px', color: '#17233f' }}>
+              {e.consequence || 'Not Recorded'}
+            </div>
+          </div>
+        </div>
       </div>
+    ))}
+  </div>
+{b5.length > 3 && (
+  <button
+    type="button"
+    onClick={() => setShowAllBehavior(!showAllBehavior)}
+    style={{
+      width: '100%',
+      marginTop: '12px',
+      padding: '10px',
+      border: 'none',
+      background: 'transparent',
+      color: '#2563eb',
+      fontSize: '14px',
+      fontWeight: '700',
+      cursor: 'pointer'
+    }}
+  >
+    {showAllBehavior
+      ? 'Show less'
+      : `View all ${b5.length} entries`}
+  </button>
+)}
+  {b5.length === 0 && (
+    <div
+      className="sm"
+      style={{
+        padding: '16px 0',
+        textAlign: 'center'
+      }}
+    >
+      No behavior entries in this report.
+    </div>
+  )}
+
+  <div
+    className="np"
+    style={{
+      display: 'flex',
+      gap: '10px',
+      marginTop: '18px'
+    }}
+  >
+    <button
+      className="btn"
+      style={{ flex: 1 }}
+      onClick={() => navigator.clipboard?.writeText(txt)}
+    >
+      Copy report
+    </button>
+
+    <button
+      className="btn g"
+      style={{ flex: 1 }}
+      onClick={() => window.print()}
+    >
+      Print
+    </button>
+  </div>
+</div>
     </div>
   )
 }
@@ -841,6 +1074,7 @@ function AdminDashboard({ onBack }) {
   const [loading, setLoading] = useState(true)
   const [adminErr, setAdminErr] = useState('')
   const [users, setUsers] = useState([])
+  const [feedback, setFeedback] = useState([])
 
   const loadStats = useCallback(async () => {
     setLoading(true)
@@ -862,11 +1096,37 @@ function AdminDashboard({ onBack }) {
     setUsers(Array.isArray(u.data) ? u.data : [])
   }
 }
-   
+   const { data: feedbackRows, error: feedbackError } = await supabase
+  .from('beta_feedback')
+  .select('*')
+  .order('created_at', { ascending: false })
+
+if (feedbackError) {
+  setAdminErr(feedbackError.message)
+  setFeedback([])
+} else {
+  setFeedback(feedbackRows || [])
+}
 
     setLoading(false)
   }, [])
+async function updateMembershipPermissions(userId, membership, nextCanLog, nextCanEditGoals) {
+  setAdminErr('')
 
+  const { error } = await supabase.rpc('manage_collaborator_permissions', {
+    _child_id: membership.child_id,
+    _member_user_id: userId,
+    _can_log: nextCanLog,
+    _can_edit_goals: nextCanEditGoals
+  })
+
+  if (error) {
+    setAdminErr(error.message)
+    return
+  }
+
+  await loadStats()
+}
   useEffect(() => {
     loadStats()
   }, [loadStats])
@@ -1140,13 +1400,66 @@ function AdminDashboard({ onBack }) {
             Child access · {membership.role}
           </div>
 
-          <div style={{ marginTop: '4px' }}>
-            {membership.can_log ? '✓' : '—'} Can log progress
-          </div>
+          {membership.role === 'parent' ? (
+  <>
+    <div style={{ marginTop: '4px' }}>
+      ✓ Can log progress
+    </div>
 
-          <div style={{ marginTop: '4px' }}>
-            {membership.can_edit_goals ? '✓' : '—'} Can edit goals
-          </div>
+    <div style={{ marginTop: '4px' }}>
+      ✓ Can edit goals
+    </div>
+
+    <div
+      style={{
+        marginTop: '8px',
+        fontSize: '13px',
+        color: '#6b7280'
+      }}
+    >
+      Parent access protected
+    </div>
+  </>
+) : (
+  <>
+    <button
+      type="button"
+      className="btn g"
+      style={{ marginTop: '8px' }}
+      onClick={() =>
+        updateMembershipPermissions(
+          user.id,
+          membership,
+          !membership.can_log,
+          membership.can_edit_goals
+        )
+      }
+    >
+      {membership.can_log ? '✓ Can log progress' : 'Enable progress logging'}
+    </button>
+
+    <button
+      type="button"
+      className="btn g"
+      style={{ marginTop: '8px' }}
+      disabled={membership.role === 'aide'}
+      onClick={() =>
+        updateMembershipPermissions(
+          user.id,
+          membership,
+          membership.can_log,
+          !membership.can_edit_goals
+        )
+      }
+    >
+      {membership.role === 'aide'
+        ? 'Goal editing unavailable for aides'
+        : membership.can_edit_goals
+          ? '✓ Can edit goals'
+          : 'Enable goal editing'}
+    </button>
+  </>
+)}
         </div>
       ))
     ) : (
@@ -1166,11 +1479,136 @@ function AdminDashboard({ onBack }) {
 </div>
 </div>
 
-            
+   <div className="card" style={{ marginTop: '16px' }}>
+  <h2>Beta Feedback</h2>
+
+  {feedback.length === 0 ? (
+    <p className="sm">No feedback submitted yet.</p>
+  ) : (
+    feedback.map(item => (
+      <div
+        key={item.id}
+        style={{
+          border: '1px solid var(--bd)',
+          borderRadius: '12px',
+          padding: '12px',
+          marginTop: '10px'
+        }}
+      >
+        <b>{item.category}</b>
+
+        <div className="sm" style={{ marginTop: '4px' }}>
+          Screen: {item.screen || 'Unknown'} · Status: {item.status}
+        </div>
+
+        <div style={{ marginTop: '8px' }}>
+          {item.message}
+        </div>
+
+        <div className="sm" style={{ marginTop: '8px' }}>
+          {new Date(item.created_at).toLocaleString()}
+        </div>
+      </div>
+    ))
+  )}
+</div>         
           </>
         )}
       </div>
     </>
+  )
+}
+function BetaFeedback({ uid, cid, screen }) {
+  const [open, setOpen] = useState(false)
+  const [category, setCategory] = useState('bug')
+  const [message, setMessage] = useState('')
+  const [msg, setMsg] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function submitFeedback() {
+    if (!message.trim()) {
+      setMsg('Please enter feedback.')
+      return
+    }
+
+    setSaving(true)
+    setMsg('')
+
+    const { error } = await supabase
+      .from('beta_feedback')
+      .insert({
+        user_id: uid,
+        child_id: cid || null,
+        category,
+        message: message.trim(),
+        screen: screen || null
+      })
+
+    setSaving(false)
+
+    if (error) {
+      setMsg(error.message)
+      return
+    }
+
+    setMessage('')
+    setMsg('Thanks — feedback submitted.')
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        className="btn g"
+        onClick={() => setOpen(true)}
+        style={{ marginTop: '14px' }}
+      >
+        Send feedback
+      </button>
+    )
+  }
+
+  return (
+    <div className="card" style={{ marginTop: '14px' }}>
+      <h2>Beta feedback</h2>
+
+      <label>Type</label>
+      <select value={category} onChange={e => setCategory(e.target.value)}>
+        <option value="bug">Bug</option>
+        <option value="confusing">Something is confusing</option>
+        <option value="feature">Feature idea</option>
+        <option value="other">Other</option>
+      </select>
+
+      <label style={{ marginTop: '10px' }}>What happened?</label>
+      <textarea
+        value={message}
+        onChange={e => setMessage(e.target.value)}
+        placeholder="Tell us what happened or what could be better."
+        rows={4}
+      />
+
+      {msg && <div className="sm" style={{ marginTop: '8px' }}>{msg}</div>}
+
+      <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+        <button
+          type="button"
+          className="btn"
+          disabled={saving}
+          onClick={submitFeedback}
+        >
+          {saving ? 'Sending...' : 'Submit'}
+        </button>
+
+        <button
+          type="button"
+          className="btn g"
+          onClick={() => setOpen(false)}
+        >
+          Close
+        </button>
+      </div>
+    </div>
   )
 }
 export default function Main({ session }) {
@@ -1186,6 +1624,7 @@ useEffect(() => {
   checkAdmin()
 }, [])
   const [kids, setKids] = useState([]), [cid, setCid] = useState(null), [tab, setTab] = useState('goals'), [err, setErr] = useState('')
+  const [showAllGoals, setShowAllGoals] = useState(false)
   const [d, setD] = useState({ goals: [], logs: [], stos: [], beh: [], team: [], names: {} }), [nk, setNk] = useState('')
   const chk = r => { if (r.error) { setErr(r.error.message); return [] } return r.data || [] }
 
@@ -1213,8 +1652,50 @@ useEffect(() => {
   const run = async (p, after = load) => { const r = await p; if (r.error) { setErr(r.error.message); return } setErr(''); await after() }
   const kid = kids.find(k => k.id === cid), me = d.team.find(m => m.user_id === uid), parent = me?.role === 'parent'
   const canGoals = !!me?.can_edit_goals
-  const joined = async id => { await loadKids(); setCid(id) }
+  const [approvalRequests, setApprovalRequests] = useState([])
+  const [approvalLoading, setApprovalLoading] = useState(false)
+  const loadApprovalRequests = useCallback(async () => {
+  if (!cid || !parent) {
+    setApprovalRequests([])
+    return
+  }
 
+  setApprovalLoading(true)
+
+  const { data, error } = await supabase.rpc('get_approval_requests', {
+    _child_id: cid
+  })
+
+  if (error) {
+    setErr(error.message)
+    setApprovalRequests([])
+  } else {
+    setApprovalRequests(Array.isArray(data) ? data : [])
+  }
+
+  setApprovalLoading(false)
+}, [cid, parent])
+useEffect(() => {
+  loadApprovalRequests()
+}, [loadApprovalRequests])
+  const joined = async id => { await loadKids(); setCid(id) }
+async function reviewApprovalRequest(requestId, decision) {
+  setErr('')
+
+  const { error } = await supabase.rpc('review_approval_request', {
+    _request_id: requestId,
+    _decision: decision,
+    _review_note: null
+  })
+
+  if (error) {
+    setErr(error.message)
+    return
+  }
+
+  await loadApprovalRequests()
+  await load()
+}
   // STO writes. RLS decides who may write; an update or delete that matches no row was blocked or not found.
   const stoRun = async (p, needRows = true) => {
     const r = await p
@@ -1307,26 +1788,27 @@ useEffect(() => {
         </div>
 
         <nav>
-          {[
-            ['goals', 'Goals'],
-            ['beh', 'Behavior'],
-            ['rep', 'Report'],
-            ['team', 'Team'],
-            ...(isAdmin ? [['admin', 'Admin']] : [])
-          ].map(([k, l]) => (
-            <button
-              key={k}
-              className={tab === k ? 'on' : ''}
-              onClick={() => setTab(k)}
-            >
-              {l}
-            </button>
-          ))}
-        </nav>
+  {[
+    ['goals', 'Goals'],
+    ['beh', 'Behavior'],
+    ['rep', 'Report'],
+    ['team', 'Team'],
+    ...(parent ? [['approvals', 'Approvals']] : []),
+...(isAdmin ? [['admin', 'Admin']] : [])
+  ].map(([k, l]) => (
+    <button
+      key={k}
+      className={tab === k ? 'on' : ''}
+      onClick={() => setTab(k)}
+    >
+      {l}
+    </button>
+  ))}
+</nav>
 
         {tab === 'goals' && (
           <>
-            {d.goals.map(g => (
+            {(showAllGoals ? d.goals : d.goals.slice(0, 3)).map(g => (
               <GoalCard
                 key={g.id}
                 g={g}
@@ -1358,7 +1840,27 @@ useEffect(() => {
                 }
               />
             ))}
-
+{d.goals.length > 3 && (
+  <button
+    type="button"
+    onClick={() => setShowAllGoals(!showAllGoals)}
+    style={{
+      width: '100%',
+      marginTop: '12px',
+      padding: '10px',
+      border: 'none',
+      background: 'transparent',
+      color: '#2563eb',
+      fontSize: '14px',
+      fontWeight: '700',
+      cursor: 'pointer'
+    }}
+  >
+    {showAllGoals
+      ? 'Show less'
+      : `View all ${d.goals.length} goals`}
+  </button>
+)}
             {canGoals ? (
               <AddGoal
                 onAdd={row =>
@@ -1449,16 +1951,80 @@ useEffect(() => {
             }
           />
         )}
+{tab === 'approvals' && parent && (
+  <div className="card">
+    <h2>Approvals</h2>
+    <div className="sm">
+      Review goal and short-term objective changes proposed by your child's team.
+    </div>
 
+    {approvalLoading ? (
+      <p className="sm">Loading approvals...</p>
+    ) : approvalRequests.length === 0 ? (
+      <p className="sm" style={{ marginTop: '16px' }}>
+        No approval requests right now.
+      </p>
+    ) : (
+      <div style={{ marginTop: '16px' }}>
+        {approvalRequests.map(request => (
+          <div
+            key={request.id}
+            style={{
+              border: '1px solid var(--bd)',
+              borderRadius: '12px',
+              padding: '14px',
+              marginBottom: '12px'
+            }}
+          >
+            <b>{request.requested_by_name}</b>
+
+            <div className="sm" style={{ marginTop: '4px' }}>
+              {request.request_type}
+            </div>
+{request.status === 'pending' && (
+  <div
+    style={{
+      display: 'flex',
+      gap: '8px',
+      marginTop: '12px',
+      flexWrap: 'wrap'
+    }}
+  >
+    <button
+      type="button"
+      className="btn"
+      onClick={() => reviewApprovalRequest(request.id, 'approved')}
+    >
+      Approve
+    </button>
+
+    <button
+      type="button"
+      className="btn g"
+      onClick={() => reviewApprovalRequest(request.id, 'declined')}
+    >
+      Decline
+    </button>
+  </div>
+)}
+            <div className="sm" style={{ marginTop: '8px' }}>
+              Status: {request.status}
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
         {tab === 'admin' && isAdmin && (
           <AdminDashboard onBack={() => setTab('goals')} />
         )}
       </>
     )}
+<BetaFeedback uid={uid} cid={cid} screen={tab} />
 
-    <p className="sm np">
-      Use first names or initials only. Not a medical record.
-    </p>
+<p className="sm np">Use first names or initials only. Not a medical record.</p>
+    
   </div>
 )
 }
