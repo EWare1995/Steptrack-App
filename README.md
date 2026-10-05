@@ -87,3 +87,21 @@ Current work includes:
 StepTrack was created to solve a collaboration problem: parents, educators, therapists, and support staff often track a child's progress across different systems and environments.
 
 StepTrack provides one shared location where approved team members can contribute progress data while maintaining clear roles, permissions, and parent oversight.
+
+## Screenshots
+
+### Admin Dashboard
+
+![StepTrack admin dashboard](docs/screenshots/admin-dashboard.png)
+
+### Behavior Tracking
+
+![StepTrack behavior log](docs/screenshots/behavior-log.png)
+
+### Built-in Beta Feedback
+
+![StepTrack beta feedback](docs/screenshots/beta-feedback.png)
+
+### Goal Progress & Short-Term Objectives
+
+![StepTrack goal progress](docs/screenshots/goal-progress.png)
