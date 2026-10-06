@@ -181,7 +181,7 @@ const visibleStos = showAllStos
 function GoalCard({ g, logs, stos = [], names, uid, parent, canEdit, onEdit, onAddSto, onEditSto, onDelSto, onLog, onDelLog, onDelGoal }) {
   const v = gv(g, logs), r = v.slice(-5), last = v[v.length - 1]
   const ind = r.filter(x => x.prompt_level === 'Independent').length
-  const [f, setF] = useState({ value: '', date: today(), p: 'Independent', w: 'Home', n: '' }), [c, setC] = useState(false), [ed, setEd] = useState(null)
+  const [f, setF] = useState({ value: '', trialTotal: '', date: today(), p: 'Independent', w: 'Home', n: '' }), [c, setC] = useState(false), [ed, setEd] = useState(null)
   const [showAllLogs, setShowAllLogs] = useState(false)
 
 const visibleLogs = showAllLogs
@@ -193,15 +193,81 @@ const visibleLogs = showAllLogs
     <div className="card">
       <div className="row"><h2 style={{ flex: 3 }}>{g.title}</h2><span className="tag" style={{ flex: '0 0 auto' }}>{g.area}</span></div>
       <span className="tag">{status(g, v)}</span>{' '}
-      <span className="sm">{last ? `Latest ${last.value} · target ${g.direction === 'down' ? '≤' : '≥'}${g.target} ${g.unit}` : 'No data yet'}</span>
+      <span className="sm">
+  {last
+    ? g.measure_type === 'trials' && last.trial_total
+      ? `Latest ${last.value}/${last.trial_total} · ${Math.round((last.value / last.trial_total) * 100)}% · target ${g.target}/${g.total_trials}`
+      : g.measure_type === 'duration'
+        ? `Latest ${last.value} ${g.unit || 'minutes'} · target ${g.direction === 'down' ? '≤' : '≥'}${g.target} ${g.unit || 'minutes'}`
+        : g.measure_type === 'percentage'
+          ? `Latest ${last.value}% · target ${g.direction === 'down' ? '≤' : '≥'}${g.target}%`
+          : `Latest ${last.value} · target ${g.direction === 'down' ? '≤' : '≥'}${g.target} ${g.unit || ''}`
+    : 'No data yet'}
+</span>
       <div className="bar"><i style={{ width: pct(g, v) + '%' }} /></div>
       <Spark g={g} v={v} />
+      {g.baseline !== null && g.baseline !== undefined && (
+  <div className="sm">
+    <b>Baseline:</b>{' '}
+    {g.measure_type === 'trials' && g.baseline_total_trials
+      ? `${g.baseline}/${g.baseline_total_trials} trials`
+      : g.measure_type === 'percentage'
+        ? `${g.baseline}%`
+        : g.measure_type === 'duration'
+          ? `${g.baseline} ${g.unit || 'minutes'}`
+          : `${g.baseline}${g.unit ? ` ${g.unit}` : ''}`}
+  </div>
+)}
       {g.supports && <div className="sm"><b>Supports that help:</b> {g.supports}</div>}
       <StoSection stos={stos} canEdit={canEdit} onAdd={onAddSto} onEdit={onEditSto} onDel={onDelSto} />
       {r.length > 0 && <div className="sm">Independent in {ind} of last {r.length} entries</div>}
       <div style={{ marginTop: 10 }}>
         <div className="row">
-          <div><label>Result</label><input type="number" value={f.value} onChange={set('value')} style={{ marginBottom: 0 }} /></div>
+          <div>
+  <label>
+    {g.measure_type === 'percentage' ? 'Accuracy %' :
+     g.measure_type === 'trials' ? 'Successful trials' :
+     g.measure_type === 'duration' ? 'Minutes completed' :
+     g.measure_type === 'frequency' ? 'Number of occurrences' :
+     g.measure_type === 'prompt' ? 'Prompt / support level' :
+     g.measure_type === 'yesno' ? 'Completed?' :
+     'Count completed'}
+  </label>
+{g.measure_type === 'prompt' ? (
+   <select value={f.value} onChange={set('value')} style={{ marginBottom: 0 }}>
+    <option value="">Select level...</option>
+    <option value="Independent">Independent</option>
+    <option value="Verbal">Verbal prompt</option>
+    <option value="Gestural">Gestural prompt</option>
+    <option value="Physical">Physical prompt</option>
+  </select>
+) : g.measure_type === 'yesno' ? (
+  <select value={f.value} onChange={set('value')} style={{ marginBottom: 0 }}>
+    <option value="">Select...</option>
+    <option value="Yes">Yes</option>
+    <option value="No">No</option>
+  </select>
+) : (
+  <input
+    type="number"
+    value={f.value}
+    onChange={set('value')}
+    style={{ marginBottom: 0 }}
+  />
+)}
+</div>
+{g.measure_type === 'trials' && (
+  <div>
+    <label>Total trials</label>
+    <input
+      type="number"
+      min="1"
+      value={f.trialTotal}
+      onChange={set('trialTotal')}
+      style={{ marginBottom: 0 }}
+    />
+  </div>
+)}
           <div><label>Date</label><input type="date" value={f.date} onChange={set('date')} style={{ marginBottom: 0 }} /></div>
         </div>
         <div className="row" style={{ marginTop: 8 }}>
@@ -211,13 +277,19 @@ const visibleLogs = showAllLogs
         <input placeholder="Note: what helped?" value={f.n} onChange={set('n')} style={{ marginTop: 8 }} />
         <button className="btn" onClick={async () => {
           if (f.value === '') return
-          await onLog({ goal_id: g.id, value: +f.value, logged_on: f.date || today(), prompt_level: f.p, setting: f.w, note: f.n.trim() })
-          setF({ ...f, value: '', n: '' })
+          await onLog({ goal_id: g.id, value: +f.value, trial_total: g.measure_type === 'trials' && f.trialTotal ? Number(f.trialTotal) : null, logged_on: f.date || today(), prompt_level: f.p, setting: f.w, note: f.n.trim() })
+          setF({ ...f, value: '', trialTotal: '', n: '' })
         }}>Log</button>
       </div>
       {visibleLogs.map(x => (
         <div className="sm" key={x.id}>
-          {x.logged_on} · {x.value} · {x.prompt_level} · {x.setting} · {names[x.logged_by] || 'Member'}{x.note ? ' · ' + x.note : ''}{' '}
+          {x.logged_on} · {g.measure_type === 'trials' && x.trial_total
+  ? `${x.value}/${x.trial_total} · ${Math.round((x.value / x.trial_total) * 100)}%`
+  : g.measure_type === 'duration'
+    ? `${x.value} ${g.unit || 'minutes'}`
+    : g.measure_type === 'percentage'
+      ? `${x.value}%`
+      : x.value} · {x.prompt_level} · {x.setting} · {names[x.logged_by] || 'Member'}{x.note ? ' · ' + x.note : ''}{' '}
           {(x.logged_by === uid || parent) && <button className="x" onClick={() => onDelLog(x.id)}>remove</button>}
         </div>
       ))}
@@ -271,7 +343,7 @@ const visibleLogs = showAllLogs
 }
 
 function AddGoal({ onAdd }) {
-  const [f, setF] = useState({ title: '', area: AREAS[0], direction: 'up', target: '', baseline: '', unit: '', mastery: 3, supports: '' })
+  const [f, setF] = useState({ title: '', area: AREAS[0], direction: 'up', target: '', totalTrials: '', baseline: '', baselineTotalTrials: '', unit: '', mastery: 3, supports: '', measureType: 'count' })
   const set = k => e => setF({ ...f, [k]: e.target.value })
   return (
     <div className="card">
@@ -282,20 +354,100 @@ function AddGoal({ onAdd }) {
         <div><label>Area</label><select value={f.area} onChange={set('area')}><Opts a={AREAS} /></select></div>
         <div><label>Direction</label><select value={f.direction} onChange={set('direction')}><option value="up">Increase to target</option><option value="down">Reduce to target</option></select></div>
       </div>
+      <div>
+  <label>Measured as</label>
+  <select value={f.measureType} onChange={set('measureType')}>
+    <option value="count">Count / repetitions</option>
+    <option value="percentage">Percentage / accuracy</option>
+    <option value="trials">Trials / opportunities</option>
+    <option value="duration">Duration</option>
+    <option value="frequency">Frequency</option>
+    <option value="prompt">Prompt / support level</option>
+    <option value="yesno">Yes / No completion</option>
+  </select>
+</div>
+
       <div className="row">
-        <div><label>Target</label><input type="number" value={f.target} onChange={set('target')} /></div>
-        <div><label>Baseline (optional)</label><input type="number" value={f.baseline} onChange={set('baseline')} /></div>
-      </div>
+        <div>
+  <label>
+    {f.measureType === 'percentage' ? 'Target percentage' :
+     f.measureType === 'trials' ? 'Successful trials' :
+     f.measureType === 'duration' ? 'Target duration' :
+     f.measureType === 'frequency' ? 'Target frequency' :
+     f.measureType === 'prompt' ? 'Target prompt level' :
+     f.measureType === 'yesno' ? 'Target completion' :
+     'Target count'}
+  </label>
+
+  <input
+    type={f.measureType === 'prompt' || f.measureType === 'yesno' ? 'text' : 'number'}
+    value={f.target}
+    onChange={set('target')}
+  />
+</div>
+{f.measureType === 'trials' && (
+  <div>
+    <label>Total trials / opportunities</label>
+    <input
+      type="number"
+      min="1"
+      value={f.totalTrials}
+      onChange={set('totalTrials')}
+    />
+  </div>
+)}
+       <div>
+  <label>
+    {f.measureType === 'percentage' ? 'Baseline percentage (optional)' :
+     f.measureType === 'trials' ? 'Baseline successful trials (optional)' :
+     f.measureType === 'duration' ? 'Baseline duration (optional)' :
+     f.measureType === 'frequency' ? 'Baseline frequency (optional)' :
+     f.measureType === 'prompt' ? 'Baseline prompt level (optional)' :
+     f.measureType === 'yesno' ? 'Baseline completion (optional)' :
+     'Baseline count (optional)'}
+  </label>
+
+  <input
+    type={f.measureType === 'prompt' || f.measureType === 'yesno' ? 'text' : 'number'}
+    value={f.baseline}
+    onChange={set('baseline')}
+  />
+</div>
+{f.measureType === 'trials' && (
+  <div>
+    <label>Baseline total trials / opportunities</label>
+    <input
+      type="number"
+      min="1"
+      value={f.baselineTotalTrials}
+      onChange={set('baselineTotalTrials')}
+    />
+  </div>
+)}
+</div>
       <div className="row">
         <div><label>Measured in</label><input value={f.unit} onChange={set('unit')} placeholder="blocks, minutes, incidents" /></div>
-        <div><label>Mastered after N in a row</label><input type="number" min="1" value={f.mastery} onChange={set('mastery')} /></div>
+        
       </div>
       <label>Supports that help (shared with school and therapists)</label>
       <input value={f.supports} onChange={set('supports')} placeholder="Visual schedule, hand-over-hand at first" />
       <button className="btn" onClick={async () => {
         if (!f.title.trim() || !f.target) return
-        await onAdd({ title: f.title.trim(), area: f.area, direction: f.direction, target: +f.target, baseline: f.baseline === '' ? null : +f.baseline, unit: f.unit.trim() || 'reps', mastery_count: Math.max(1, +f.mastery || 3), supports: f.supports.trim() })
-        setF({ ...f, title: '', target: '', baseline: '', supports: '' })
+        await onAdd({
+  title: f.title.trim(),
+  area: f.area,
+  direction: f.direction,
+  target: +f.target,
+  baseline: f.baseline ? +f.baseline : null,
+  baseline_total_trials: f.measureType === 'trials' && f.baselineTotalTrials ? Number(f.baselineTotalTrials) : null,
+  unit: f.unit,
+  
+  supports: f.supports,
+  measure_type: f.measureType,
+  total_trials: f.measureType === 'trials' && f.totalTrials ? Number(f.totalTrials) : null
+})
+
+setF({ ...f, title: '', target: '', baseline: '', baslineTotalTrials: '', supports: '', totalTrials: '', measureType: 'count' })
       }}>Add goal</button>
     </div>
   )
