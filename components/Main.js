@@ -42,12 +42,15 @@ function Spark({ g, v }) {
 const Opts = ({ a }) => a.map(x => <option key={x}>{x}</option>)
 // ---- STO (short-term objective) config: one place to extend measurement types or statuses ----
 const SUPPORT_LEVELS = { 1: 'Physical', 2: 'Verbal', 3: 'Gesture', 4: 'Independent' } // higher = more independent
-const MT = {
+
+  const MT = {
   count: { label: 'Count / repetitions', unit: 'times' },
   percentage: { label: 'Percentage / accuracy', unit: '%', fixed: true },
+  trials: { label: 'Trials / opportunities', unit: 'trials', fixed: true },
   duration: { label: 'Duration', units: ['seconds', 'minutes', 'hours'] },
   frequency: { label: 'Frequency', units: ['times per hour', 'times per day', 'times per week'] },
-  independence: { label: 'Independence / support level', unit: 'support level', fixed: true },
+  independence: { label: 'Prompt / support level', unit: 'support level', fixed: true },
+  yesno: { label: 'Yes / No completion', unit: 'completed', fixed: true }
 }
 const STATUS = { not_started: 'Not started', in_progress: 'In progress', met: 'Met', discontinued: 'Discontinued' }
 const stLabel = x => STATUS[x] ?? String(x)
@@ -58,12 +61,18 @@ const stoFmt = (mt, v, unit) => {
   if (mt === 'percentage') return v + '%'
   return v + (unit ? ' ' + unit : '')
 }
-const blankSto = { title: '', mt: 'count', baseline: '', target: '', unit: 'times', date: '', status: 'not_started', supports: '' }
+const blankSto = { title: '', mt: 'count', baseline: '', target: '', baselineTotalTrials: '', targetTotalTrials: '', unit: 'times', date: '', status: 'not_started', supports: '' }
 const stoToForm = o => ({
-  title: o.title ?? '', mt: o.measurement_type ?? 'count',
-  baseline: o.baseline == null ? '' : String(o.baseline), target: o.target == null ? '' : String(o.target),
-  unit: o.unit ?? '', date: o.target_date ? String(o.target_date).slice(0, 10) : '',
-  status: o.status ?? 'not_started', supports: o.supports ?? '',
+  title: o.title ?? '',
+  mt: o.measurement_type ?? 'count',
+  baseline: o.baseline == null ? '' : String(o.baseline),
+  target: o.target == null ? '' : String(o.target),
+  baselineTotalTrials: o.baseline_total_trials == null ? '' : String(o.baseline_total_trials),
+  targetTotalTrials: o.target_total_trials == null ? '' : String(o.target_total_trials),
+  unit: o.unit ?? '',
+  date: o.target_date ? String(o.target_date).slice(0, 10) : '',
+  status: o.status ?? 'not_started',
+  supports: o.supports ?? ''
 })
 
 function StoForm({ init, submitLabel, onSave, onCancel }) {
@@ -86,7 +95,20 @@ function StoForm({ init, submitLabel, onSave, onCancel }) {
     if (f.target === '') return setMsg('Add a target.')
     if (f.mt === 'percentage' && [f.baseline, f.target].some(v => v !== '' && (+v < 0 || +v > 100))) return setMsg('Percentages must be between 0 and 100.')
     setMsg(''); setBusy(true)
-    await onSave({ title: f.title.trim(), measurement_type: f.mt, baseline: num(f.baseline), target: num(f.target), unit: (f.unit || '').trim(), target_date: f.date || null, status: f.status, supports: f.supports.trim() })
+    await onSave({
+  title: f.title.trim(),
+  measurement_type: f.mt,
+  baseline: num(f.baseline),
+  target: num(f.target),
+  baseline_total_trials:
+    f.mt === 'trials' ? num(f.baselineTotalTrials) : null,
+  target_total_trials:
+    f.mt === 'trials' ? num(f.targetTotalTrials) : null,
+  unit: f.unit,
+  target_date: f.date || null,
+  status: f.status,
+  supports: f.supports
+})
     setBusy(false)
   }
   return (
@@ -97,16 +119,75 @@ function StoForm({ init, submitLabel, onSave, onCancel }) {
         <div><label>Measurement type</label><select value={f.mt} onChange={changeType}>{types.map(t => <option key={t} value={t}>{MT[t] ? MT[t].label : t}</option>)}</select></div>
         <div><label>Target date</label><input type="date" value={f.date} onChange={set('date')} /></div>
       </div>
-      <div className="row">
-        <div><label>Baseline (optional)</label>{val('baseline')}</div>
-        <div><label>Target</label>{val('target')}</div>
-        {!cfg.fixed && (
-          <div><label>Unit</label>
-            {cfg.units ? <select value={f.unit} onChange={set('unit')}>{units.map(u => <option key={u}>{u}</option>)}</select>
-              : <input value={f.unit} onChange={set('unit')} placeholder="blocks, steps, words" />}
-          </div>
+      {f.mt === 'trials' ? (
+  <>
+    <div className="row">
+      <div>
+        <label>Baseline successful trials</label>
+        <input
+          type="number"
+          min="0"
+          value={f.baseline}
+          onChange={set('baseline')}
+        />
+      </div>
+
+      <div>
+        <label>Baseline total trials</label>
+        <input
+          type="number"
+          min="1"
+          value={f.baselineTotalTrials}
+          onChange={set('baselineTotalTrials')}
+        />
+      </div>
+    </div>
+
+    <div className="row">
+      <div>
+        <label>Target successful trials</label>
+        <input
+          type="number"
+          min="0"
+          value={f.target}
+          onChange={set('target')}
+        />
+      </div>
+
+      <div>
+        <label>Target total trials</label>
+        <input
+          type="number"
+          min="1"
+          value={f.targetTotalTrials}
+          onChange={set('targetTotalTrials')}
+        />
+      </div>
+    </div>
+  </>
+) : (
+  <div className="row">
+    <div><label>Baseline (optional)</label>{val('baseline')}</div>
+    <div><label>Target</label>{val('target')}</div>
+
+    {!cfg.fixed && (
+      <div>
+        <label>Unit</label>
+        {cfg.units ? (
+          <select value={f.unit} onChange={set('unit')}>
+            {units.map(u => <option key={u}>{u}</option>)}
+          </select>
+        ) : (
+          <input
+            value={f.unit}
+            onChange={set('unit')}
+            placeholder="blocks, steps, words"
+          />
         )}
       </div>
+    )}
+  </div>
+)}
       <label>Status</label>
       <select value={f.status} onChange={set('status')}>{stats.map(k => <option key={k} value={k}>{stLabel(k)}</option>)}</select>
       <label>Supports</label>
@@ -136,7 +217,12 @@ const visibleStos = showAllStos
       ) : (
         <div key={o.id} style={{ border: '1px solid var(--bd)', borderRadius: 8, padding: 10, marginTop: 8 }}>
           <div><b>{o.title}</b> <span className="tag">{MT[o.measurement_type] ? MT[o.measurement_type].label : (o.measurement_type || 'Unspecified')}</span></div>
-          <div className="sm">Baseline {stoFmt(o.measurement_type, o.baseline, o.unit)} to target {stoFmt(o.measurement_type, o.target, o.unit)}{o.target_date ? ' by ' + String(o.target_date).slice(0, 10) : ''}</div>
+         <div className="sm">
+  {o.measurement_type === 'trials'
+    ? `Baseline ${o.baseline ?? '-'}${o.baseline_total_trials ? `/${o.baseline_total_trials}` : ''} trials to target ${o.target ?? '-'}${o.target_total_trials ? `/${o.target_total_trials}` : ''} trials`
+    : `Baseline ${stoFmt(o.measurement_type, o.baseline, o.unit)} to target ${stoFmt(o.measurement_type, o.target, o.unit)}`
+  }
+</div>
           {o.supports && <div className="sm"><b>Supports:</b> {o.supports}</div>}
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 6 }}>
             {canEdit ? (
@@ -191,8 +277,35 @@ const visibleLogs = showAllLogs
   const set = k => e => setF({ ...f, [k]: e.target.value })
   return (
     <div className="card">
-      <div className="row"><h2 style={{ flex: 3 }}>{g.title}</h2><span className="tag" style={{ flex: '0 0 auto' }}>{g.area}</span></div>
-      <span className="tag">{status(g, v)}</span>{' '}
+     <div
+  className="row"
+  style={{
+    alignItems: 'flex-start',
+    flexWrap: 'wrap'
+  }}
+>
+  <h2
+    style={{
+      flex: '1 1 100%',
+      fontSize: 'clamp(16px, 1.8vw, 24px)',
+      lineHeight: 1.25,
+      marginBottom: 8,
+      wordBreak: 'break-word'
+    }}
+  >
+    {g.title}
+  </h2>
+
+  <span
+    className="tag"
+    style={{
+  flex: '0 0 auto',
+  marginLeft: 'auto'
+}}
+  >
+    {status(g, v)}
+  </span>
+</div>
       <span className="sm">
   {last
     ? g.measure_type === 'trials' && last.trial_total
@@ -222,7 +335,13 @@ const visibleLogs = showAllLogs
       <StoSection stos={stos} canEdit={canEdit} onAdd={onAddSto} onEdit={onEditSto} onDel={onDelSto} />
       {r.length > 0 && <div className="sm">Independent in {ind} of last {r.length} entries</div>}
       <div style={{ marginTop: 10 }}>
-        <div className="row">
+        <div
+  className="row"
+  style={{
+    alignItems: 'flex-start',
+    flexWrap: 'wrap'
+  }}
+>
           <div>
   <label>
     {g.measure_type === 'percentage' ? 'Accuracy %' :
@@ -344,10 +463,453 @@ const visibleLogs = showAllLogs
 
 function AddGoal({ onAdd }) {
   const [f, setF] = useState({ title: '', area: AREAS[0], direction: 'up', target: '', totalTrials: '', baseline: '', baselineTotalTrials: '', unit: '', mastery: 3, supports: '', measureType: 'count' })
+  const [scanPreview, setScanPreview] = useState('')
+  const [scanFile, setScanFile] = useState(null)
+  const [scanLoading, setScanLoading] = useState(false)
+const [scanError, setScanError] = useState('')
+const [scanResult, setScanResult] = useState(null)
   const set = k => e => setF({ ...f, [k]: e.target.value })
   return (
     <div className="card">
       <h2>Add a goal</h2>
+      
+  
+
+  <div style={{ marginBottom: 12 }}>
+  <label>Scan Goal Form</label>
+
+  <input
+    type="file"
+    accept="image/*"
+    capture="environment"
+    onChange={(e) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+
+      setScanFile(file)
+
+const previewUrl = URL.createObjectURL(file)
+setScanPreview(previewUrl)
+    }}
+  />
+
+  {scanPreview && (
+    <div style={{ marginTop: 10 }}>
+      <img
+        src={scanPreview}
+        alt="Goal form preview"
+        style={{
+          width: '100%',
+          maxHeight: 350,
+          objectFit: 'contain',
+          borderRadius: 10
+        }}
+      />
+    </div>
+  )}
+</div>
+{scanFile && (
+  <button
+    type="button"
+    className="btn"
+    onClick={async () => {
+      setScanError('')
+      setScanLoading(true)
+
+      try {
+        const formData = new FormData()
+        formData.append('file', scanFile)
+
+        const res = await fetch('/api/scan-goal', {
+          method: 'POST',
+          body: formData
+        })
+
+        const data = await res.json()
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Could not scan goal form')
+        }
+
+        setScanResult(data)
+      } catch (err) {
+        setScanError(err.message)
+      } finally {
+        setScanLoading(false)
+      }
+    }}
+    disabled={scanLoading}
+    style={{ marginTop: 10 }}
+  >
+    {scanLoading ? 'Scanning...' : 'Scan & Extract Goal'}
+  </button>
+)}
+<button
+  type="button"
+  className="btn g"
+  onClick={() => {
+    setScanResult({
+      goal: {
+        title: 'Complete a functional academics worksheet with no more than one gestural prompt',
+        area: 'Fine motor',
+        direction: 'up',
+        measureType: 'trials',
+        target: 4,
+        totalTrials: 5,
+        baseline: 2,
+        baselineTotalTrials: 5,
+        unit: '',
+        supports: 'Visual or gestural prompts',
+        targetDate: '2027-01-15'
+      },
+      stos: [
+        {
+          title: 'Complete worksheet with no more than two physical or gestural prompts',
+          measurementType: 'trials',
+          baseline: 2,
+          baselineTotalTrials: 5,
+          target: 2,
+          targetTotalTrials: 5,
+          unit: '',
+          targetDate: '2026-05-16',
+          supports: 'Physical or gestural prompts'
+        },
+        {
+          title: 'Complete worksheet with no more than one physical or gestural prompt',
+          measurementType: 'trials',
+          baseline: 2,
+          baselineTotalTrials: 5,
+          target: 3,
+          targetTotalTrials: 5,
+          unit: '',
+          targetDate: '2026-09-16',
+          supports: 'Physical or gestural prompts'
+        }
+      ]
+    })
+  }}
+  style={{ marginTop: 10, marginLeft: 8 }}
+>
+  Preview Review Screen
+</button>
+{scanError && (
+  <div className="sm" style={{ marginTop: 8 }}>
+    {scanError}
+  </div>
+)}
+{scanResult && (
+  <div
+    className="card"
+    style={{
+      marginTop: 12,
+      padding: 16
+    }}
+  >
+    <h3>Review Extracted Goal</h3>
+
+    <div className="sm" style={{ marginBottom: 12 }}>
+      Review the extracted information before using it.
+    </div>
+
+    <label>Annual Goal</label>
+    <textarea
+      value={scanResult.goal?.title || ''}
+      onChange={(e) =>
+        setScanResult({
+          ...scanResult,
+          goal: {
+            ...scanResult.goal,
+            title: e.target.value
+          }
+        })
+      }
+      rows={4}
+    />
+
+    <div className="row">
+      <div>
+        <label>Area</label>
+        <input
+          value={scanResult.goal?.area || ''}
+          onChange={(e) =>
+            setScanResult({
+              ...scanResult,
+              goal: {
+                ...scanResult.goal,
+                area: e.target.value
+              }
+            })
+          }
+        />
+      </div>
+
+      <div>
+        <label>Measurement type</label>
+        <input
+          value={scanResult.goal?.measureType || ''}
+          onChange={(e) =>
+            setScanResult({
+              ...scanResult,
+              goal: {
+                ...scanResult.goal,
+                measureType: e.target.value
+              }
+            })
+          }
+        />
+      </div>
+    </div>
+
+    {scanResult.goal?.measureType === 'trials' ? (
+      <>
+        <div className="row">
+          <div>
+            <label>Baseline successful trials</label>
+            <input
+              type="number"
+              value={scanResult.goal?.baseline ?? ''}
+              onChange={(e) =>
+                setScanResult({
+                  ...scanResult,
+                  goal: {
+                    ...scanResult.goal,
+                    baseline: e.target.value
+                  }
+                })
+              }
+            />
+          </div>
+
+          <div>
+            <label>Baseline total trials</label>
+            <input
+              type="number"
+              value={scanResult.goal?.baselineTotalTrials ?? ''}
+              onChange={(e) =>
+                setScanResult({
+                  ...scanResult,
+                  goal: {
+                    ...scanResult.goal,
+                    baselineTotalTrials: e.target.value
+                  }
+                })
+              }
+            />
+          </div>
+        </div>
+
+        <div className="row">
+          <div>
+            <label>Target successful trials</label>
+            <input
+              type="number"
+              value={scanResult.goal?.target ?? ''}
+              onChange={(e) =>
+                setScanResult({
+                  ...scanResult,
+                  goal: {
+                    ...scanResult.goal,
+                    target: e.target.value
+                  }
+                })
+              }
+            />
+          </div>
+
+          <div>
+            <label>Target total trials</label>
+            <input
+              type="number"
+              value={scanResult.goal?.totalTrials ?? ''}
+              onChange={(e) =>
+                setScanResult({
+                  ...scanResult,
+                  goal: {
+                    ...scanResult.goal,
+                    totalTrials: e.target.value
+                  }
+                })
+              }
+            />
+          </div>
+        </div>
+      </>
+    ) : (
+      <div className="row">
+        <div>
+          <label>Baseline</label>
+          <input
+            value={scanResult.goal?.baseline ?? ''}
+            onChange={(e) =>
+              setScanResult({
+                ...scanResult,
+                goal: {
+                  ...scanResult.goal,
+                  baseline: e.target.value
+                }
+              })
+            }
+          />
+        </div>
+
+        <div>
+          <label>Target</label>
+          <input
+            value={scanResult.goal?.target ?? ''}
+            onChange={(e) =>
+              setScanResult({
+                ...scanResult,
+                goal: {
+                  ...scanResult.goal,
+                  target: e.target.value
+                }
+              })
+            }
+          />
+        </div>
+      </div>
+    )}
+
+    <label>Supports</label>
+    <input
+      value={scanResult.goal?.supports || ''}
+      onChange={(e) =>
+        setScanResult({
+          ...scanResult,
+          goal: {
+            ...scanResult.goal,
+            supports: e.target.value
+          }
+        })
+      }
+    />
+
+    <label>Target date</label>
+    <input
+      type="date"
+      value={scanResult.goal?.targetDate || ''}
+      onChange={(e) =>
+        setScanResult({
+          ...scanResult,
+          goal: {
+            ...scanResult.goal,
+            targetDate: e.target.value
+          }
+        })
+      }
+    />
+
+    {scanResult.stos?.length > 0 && (
+      <>
+        <h3 style={{ marginTop: 18 }}>Short-Term Objectives</h3>
+
+        {scanResult.stos.map((sto, index) => (
+          <div
+            key={index}
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 10,
+              padding: 12,
+              marginTop: 10
+            }}
+          >
+            <b>STO {index + 1}</b>
+
+            <textarea
+              value={sto.title || ''}
+              onChange={(e) => {
+                const updated = [...scanResult.stos]
+                updated[index] = {
+                  ...updated[index],
+                  title: e.target.value
+                }
+
+                setScanResult({
+                  ...scanResult,
+                  stos: updated
+                })
+              }}
+              rows={3}
+              style={{ marginTop: 8 }}
+            />
+
+            {sto.measurementType === 'trials' && (
+              <>
+                <div className="row">
+                  <div>
+                    <label>Baseline</label>
+                    <input
+                      value={`${sto.baseline ?? ''}/${sto.baselineTotalTrials ?? ''}`}
+                      readOnly
+                    />
+                  </div>
+
+                  <div>
+                    <label>Target</label>
+                    <input
+                      value={`${sto.target ?? ''}/${sto.targetTotalTrials ?? ''}`}
+                      readOnly
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            <label>Target date</label>
+            <input
+              type="date"
+              value={sto.targetDate || ''}
+              readOnly
+            />
+
+            <label>Supports</label>
+            <input
+              value={sto.supports || ''}
+              readOnly
+            />
+          </div>
+        ))}
+      </>
+    )}
+
+    <div style={{ marginTop: 16 }}>
+      <button
+        type="button"
+        className="btn"
+        onClick={() => {
+          const g = scanResult.goal
+
+          setF({
+            ...f,
+            title: g.title || '',
+            area: g.area || AREAS[0],
+            direction: g.direction || 'up',
+            measureType: g.measureType || 'count',
+            target: g.target ?? '',
+            totalTrials: g.totalTrials ?? '',
+            baseline: g.baseline ?? '',
+            baselineTotalTrials: g.baselineTotalTrials ?? '',
+            unit: g.unit || '',
+            supports: g.supports || ''
+          })
+
+          setScanResult(null)
+        }}
+      >
+        Use This Goal
+      </button>
+
+      <button
+        type="button"
+        className="btn g"
+        onClick={() => setScanResult(null)}
+        style={{ marginLeft: 8 }}
+      >
+        Cancel Review
+      </button>
+    </div>
+  </div>
+)}
       <label>Goal (specific and observable)</label>
       <input value={f.title} onChange={set('title')} placeholder="Stacks 6 blocks without help" />
       <div className="row">
@@ -379,11 +941,21 @@ function AddGoal({ onAdd }) {
      'Target count'}
   </label>
 
+  {f.measureType === 'prompt' ? (
+  <select value={f.target} onChange={set('target')}>
+    <option value="">Select support level...</option>
+    <option value="Physical">Physical</option>
+    <option value="Verbal">Verbal</option>
+    <option value="Gesture">Gesture</option>
+    <option value="Independent">Independent</option>
+  </select>
+) : (
   <input
-    type={f.measureType === 'prompt' || f.measureType === 'yesno' ? 'text' : 'number'}
+    type="number"
     value={f.target}
     onChange={set('target')}
   />
+)}
 </div>
 {f.measureType === 'trials' && (
   <div>
@@ -407,11 +979,21 @@ function AddGoal({ onAdd }) {
      'Baseline count (optional)'}
   </label>
 
+  {f.measureType === 'prompt' ? (
+  <select value={f.baseline} onChange={set('baseline')}>
+    <option value="">Select support level...</option>
+    <option value="Physical">Physical</option>
+    <option value="Verbal">Verbal</option>
+    <option value="Gesture">Gesture</option>
+    <option value="Independent">Independent</option>
+  </select>
+) : (
   <input
-    type={f.measureType === 'prompt' || f.measureType === 'yesno' ? 'text' : 'number'}
+    type="number"
     value={f.baseline}
     onChange={set('baseline')}
   />
+)}
 </div>
 {f.measureType === 'trials' && (
   <div>
@@ -425,10 +1007,18 @@ function AddGoal({ onAdd }) {
   </div>
 )}
 </div>
-      <div className="row">
-        <div><label>Measured in</label><input value={f.unit} onChange={set('unit')} placeholder="blocks, minutes, incidents" /></div>
-        
-      </div>
+      {f.measureType !== 'prompt' && (
+  <div className="row">
+    <div>
+      <label>Measured in</label>
+      <input
+        value={f.unit}
+        onChange={set('unit')}
+        placeholder="blocks, minutes, incidents"
+      />
+    </div>
+  </div>
+)}
       <label>Supports that help (shared with school and therapists)</label>
       <input value={f.supports} onChange={set('supports')} placeholder="Visual schedule, hand-over-hand at first" />
       <button className="btn" onClick={async () => {
@@ -865,13 +1455,50 @@ setF({
   )
 }
 
-function Report({ kid, goals, logs, beh }) {
+function Report({ kid, goals, logs, beh, stos }) {
   const [showAllBehavior, setShowAllBehavior] = useState(false)
+  const reportValue = (g, log) => {
+  if (!log) return '—'
+
+  if (g.measure_type === 'trials') {
+    const total = log.trial_total
+    if (!total) return `${log.value} trials`
+
+    const pct = Math.round((Number(log.value) / Number(total)) * 100)
+    return `${log.value}/${total} (${pct}%)`
+  }
+
+  if (g.measure_type === 'percentage') {
+    return `${log.value}%`
+  }
+
+  if (g.measure_type === 'duration') {
+    return `${log.value} ${g.unit || 'minutes'}`
+  }
+
+  if (g.measure_type === 'frequency') {
+    return `${log.value}${g.unit ? ` ${g.unit}` : ' times'}`
+  }
+
+  if (g.measure_type === 'prompt') {
+    return SUPPORT_LEVELS[log.value] ?? String(log.value)
+  }
+
+  return `${log.value}${g.unit ? ` ${g.unit}` : ''}`
+}
   const R = goals.map(g => {
     const v = gv(g, logs), r = v.slice(-5)
     const a = r.length ? (r.reduce((s, x) => s + x.value, 0) / r.length).toFixed(1) : '-'
     const ind = r.length ? Math.round(r.filter(x => x.prompt_level === 'Independent').length / r.length * 100) + '%' : '-'
-    return { g, l: v.length ? v[v.length - 1].value : '-', a, ind, st: status(g, v), n: v.length }
+    return {
+  g,
+  latestLog: v.length ? v[v.length - 1] : null,
+  l: v.length ? v[v.length - 1].value : '—',
+  a,
+  ind,
+  st: status(g, v),
+  n: v.length
+}
   })
   const b30 = beh.filter(e => e.logged_on >= ago(30)), b5 = beh.slice(-5)
   const visibleBehaviors = showAllBehavior
@@ -882,7 +1509,14 @@ function Report({ kid, goals, logs, beh }) {
     `\n\nBehavior: ${b30.length} logged in 30 days\n` + b5.map(e => `${e.logged_on} ${e.intensity}: ${e.antecedent} -> ${e.behavior} -> ${e.consequence}`).join('\n')
   return (
     <div className="card">
-      <h2>Progress report: {kid.name}</h2><div className="sm">{today()} · for IEP meetings and therapy sessions</div>
+      <h2
+  style={{
+    fontSize: 'clamp(22px, 2.5vw, 30px)',
+    lineHeight: 1.2
+  }}
+>
+  Progress report: {kid.name}
+</h2>
       <div style={{ display: 'grid', gap: '12px', marginTop: '16px' }}>
   {R.map(r => (
     <div
@@ -895,7 +1529,7 @@ function Report({ kid, goals, logs, beh }) {
       }}
     >
       <div style={{
-        fontSize: '17px',
+        fontSize: 'clamp(16px, 1.6vw, 20px)',
         fontWeight: '700',
         color: '#17233f'
       }}>
@@ -917,11 +1551,44 @@ function Report({ kid, goals, logs, beh }) {
         gap: '16px 12px'
       }}>
         <div>
+  <div
+    style={{
+      fontSize: '11px',
+      fontWeight: '700',
+      color: '#6b7280'
+    }}
+  >
+    BASELINE
+  </div>
+
+  <div style={{ marginTop: '4px' }}>
+    {r.g.baseline === null || r.g.baseline === undefined
+      ? '—'
+      : r.g.measure_type === 'trials' && r.g.baseline_total_trials
+      ? `${r.g.baseline}/${r.g.baseline_total_trials} trials`
+      : r.g.measure_type === 'percentage'
+      ? `${r.g.baseline}%`
+      : r.g.measure_type === 'duration'
+      ? `${r.g.baseline} ${r.g.unit || 'minutes'}`
+      : r.g.measure_type === 'prompt'
+      ? `${SUPPORT_LEVELS[r.g.baseline] ?? r.g.baseline}`
+      : `${r.g.baseline}${r.g.unit ? ` ${r.g.unit}` : ''}`
+    }
+  </div>
+</div>
+        <div>
           <div style={{ fontSize: '11px', fontWeight: '700', color: '#6b7280' }}>
             TARGET
           </div>
           <div style={{ marginTop: '4px' }}>
-            {r.g.direction === 'down' ? '≤' : '≥'}{r.g.target} {r.g.unit}
+            {r.g.measure_type === 'trials' && r.g.total_trials
+  ? `${r.g.target}/${r.g.total_trials} trials`
+  : r.g.measure_type === 'percentage'
+  ? `${r.g.direction === 'down' ? '≤' : '≥'}${r.g.target}%`
+  : r.g.measure_type === 'prompt'
+  ? `${SUPPORT_LEVELS[r.g.target] ?? r.g.target}`
+  : `${r.g.direction === 'down' ? '≤' : '≥'}${r.g.target}${r.g.unit ? ` ${r.g.unit}` : ''}`
+}
           </div>
         </div>
 
@@ -930,7 +1597,7 @@ function Report({ kid, goals, logs, beh }) {
             LATEST
           </div>
           <div style={{ marginTop: '4px' }}>
-            {r.l}
+            {reportValue(r.g, r.latestLog)}
           </div>
         </div>
 
@@ -939,18 +1606,36 @@ function Report({ kid, goals, logs, beh }) {
             AVG. LAST 5
           </div>
           <div style={{ marginTop: '4px' }}>
-            {r.a}
+            {r.g.measure_type === 'trials' && r.g.total_trials
+  ? `${r.a}/${r.g.total_trials}`
+  : r.g.measure_type === 'percentage'
+  ? `${r.a}%`
+  : r.g.measure_type === 'duration'
+  ? `${r.a} ${r.g.unit || 'minutes'}`
+  : r.g.measure_type === 'frequency'
+  ? `${r.a}${r.g.unit ? ` ${r.g.unit}` : ' times'}`
+  : r.a
+}
           </div>
         </div>
 
-        <div>
-          <div style={{ fontSize: '11px', fontWeight: '700', color: '#6b7280' }}>
-            INDEPENDENCE
-          </div>
-          <div style={{ marginTop: '4px' }}>
-            {r.ind}
-          </div>
-        </div>
+       {r.g.measure_type === 'prompt' && (
+  <div>
+    <div
+      style={{
+        fontSize: '11px',
+        fontWeight: '700',
+        color: '#6b7280'
+      }}
+    >
+      INDEPENDENCE
+    </div>
+
+    <div style={{ marginTop: '4px' }}>
+      {r.ind}%
+    </div>
+  </div>
+)}
       </div>
 
       <div style={{
@@ -975,9 +1660,62 @@ function Report({ kid, goals, logs, beh }) {
           {r.st}
         </div>
       </div>
+      {stos
+  .filter(o => o.goal_id === r.g.id)
+  .map((o, index) => (
+    <div
+      key={o.id || index}
+      style={{
+        borderTop: '1px solid #e5e7eb',
+        marginTop: 14,
+        paddingTop: 12
+      }}
+    >
+      <div
+        style={{
+          fontSize: '12px',
+          fontWeight: '700',
+          color: '#6b7280',
+          marginBottom: 6
+        }}
+      >
+        STO {index + 1}
+      </div>
+      <div className="sm" style={{ marginTop: 8 }}>
+  <b>Status:</b>{' '}
+  <span
+    className="tag"
+    style={{ textTransform: 'capitalize' }}
+  >
+    {String(o.status || 'not_started').replaceAll('_', ' ')}
+  </span>
+</div>
+
+<div className="sm">
+  <b>Baseline:</b>{' '}
+  {o.measurement_type === 'trials'
+    ? `${o.baseline ?? '—'}${o.baseline_total_trials ? `/${o.baseline_total_trials}` : ''}`
+    : stoFmt(o.measurement_type, o.baseline, o.unit)}
+</div>
+
+<div className="sm">
+  <b>Target:</b>{' '}
+  {o.measurement_type === 'trials'
+    ? `${o.target ?? '—'}${o.target_total_trials ? `/${o.target_total_trials}` : ''}`
+    : stoFmt(o.measurement_type, o.target, o.unit)}
+</div>
+
+<div className="sm">
+  <b>Target date:</b>{' '}
+  {o.target_date
+    ? new Date(`${String(o.target_date).slice(0, 10)}T00:00:00`).toLocaleDateString()
+    : '—'}
+</div>
     </div>
   ))}
 </div>
+  ))}
+  </div>
       <div style={{ marginTop: '24px' }}>
   <div style={{
     display: 'flex',
@@ -2060,11 +2798,12 @@ async function reviewApprovalRequest(requestId, decision) {
 
         {tab === 'rep' && (
           <Report
-            kid={kid}
-            goals={d.goals}
-            logs={d.logs}
-            beh={d.beh}
-          />
+  kid={kid}
+  goals={d.goals}
+  logs={d.logs}
+  beh={d.beh}
+  stos={d.stos}
+/>
         )}
 
         {tab === 'team' && (
