@@ -216,7 +216,18 @@ const visibleStos = showAllStos
           onSave={async row => { if (await onEdit(o.id, row)) setEditId(null) }} />
       ) : (
         <div key={o.id} style={{ border: '1px solid var(--bd)', borderRadius: 8, padding: 10, marginTop: 8 }}>
-          <div><b>{o.title}</b> <span className="tag">{MT[o.measurement_type] ? MT[o.measurement_type].label : (o.measurement_type || 'Unspecified')}</span></div>
+          <b
+  style={{
+    display: 'block',
+    fontSize: 'clamp(15px, 1.6vw, 20px)',
+    lineHeight: 1.3,
+    fontWeight: 600,
+    wordBreak: 'break-word',
+    marginBottom: 8
+  }}
+>
+  {o.title}
+</b>
          <div className="sm">
   {o.measurement_type === 'trials'
     ? `Baseline ${o.baseline ?? '-'}${o.baseline_total_trials ? `/${o.baseline_total_trials}` : ''} trials to target ${o.target ?? '-'}${o.target_total_trials ? `/${o.target_total_trials}` : ''} trials`
@@ -1905,15 +1916,37 @@ function Report({ kid, goals, logs, beh, stos }) {
 
 function Join({ onDone }) {
   const [t, setT] = useState(''), [m, setM] = useState('')
+  const [fromLink, setFromLink] = useState(false)
+
+useEffect(() => {
+  const token = new URLSearchParams(window.location.search).get('invite')
+{!fromLink && (
+  <input
+    value={t}
+    onChange={e => setT(e.target.value)}
+    placeholder="Paste invite code"
+  />
+)}
+  if (token) {
+    setT(token)
+    setFromLink(true)
+  }
+}, [])
   return (
     <div className="card">
-      <h2>Join with an invite code</h2>
-      <div className="sm">Sign in with the same email address the invite was sent to.</div>
+     <h2>{fromLink ? 'Accept invitation' : 'Join a student team'}</h2>
+      <div className="sm">
+  {fromLink
+    ? 'You have been invited to join this student’s StepTrack team.'
+    : 'Sign in with the same email address the invite was sent to.'}
+</div>
       <input value={t} onChange={e => setT(e.target.value)} placeholder="Paste invite code" />
       <button className="btn" onClick={async () => {
         const r = await supabase.rpc('accept_invite', { _token: t.trim() })
         if (r.error) setM(r.error.message); else { setT(''); setM(''); onDone(r.data) }
-      }}>Join</button>
+      }}>
+  {fromLink ? 'Accept invitation' : 'Join'}
+</button>
       {m && <div className="err">{m}</div>}
     </div>
   )
@@ -1922,6 +1955,7 @@ function Join({ onDone }) {
 function Team({ team, names, uid, parent, cid, kid, onRevoke, onName, onDeleteChild, onJoin }) {
   const [em, setEm] = useState(''), [role, setRole] = useState('teacher'), [code, setCode] = useState(''), [msg, setMsg] = useState('')
   const [nm, setNm] = useState(names[uid] || ''), [c, setC] = useState(false)
+  const [inviteLink, setInviteLink] = useState('')
   return (
     <>
       <div className="card">
@@ -1941,16 +1975,42 @@ function Team({ team, names, uid, parent, cid, kid, onRevoke, onName, onDeleteCh
       </div>
       {parent && (
         <div className="card">
-          <h2>Invite someone</h2>
-          <div className="sm">They must sign in with this exact email to accept. Codes expire in 7 days.</div>
+          <h2>Invite a team member</h2>
+          <div className="sm">They must sign in with this exact email to accept. Invitations expire in 7 days..</div>
           <label>Email</label><input type="email" value={em} onChange={e => setEm(e.target.value)} />
           <label>Role</label><select value={role} onChange={e => setRole(e.target.value)}><Opts a={['teacher', 'therapist', 'aide', 'parent']} /></select>
           <button className="btn" onClick={async () => {
             setMsg(''); setCode('')
             const r = await supabase.rpc('create_invite', { _child: cid, _email: em.trim(), _role: role })
-            if (r.error) setMsg(r.error.message); else { setCode(r.data); setEm('') }
-          }}>Create invite code</button>
-          {code && <><p className="sm">Send this code to them privately. It is shown only once:</p><input readOnly value={code} onFocus={e => e.target.select()} /></>}
+            if (r.error) setMsg(r.error.message); else {
+  setCode(r.data)
+
+ const link = `https://steptrack-app.vercel.app/?invite=${encodeURIComponent(r.data)}`
+  setInviteLink(link)
+
+  setEm('')
+}
+          }}>Create invitation</button>
+          {code && <><p className="sm">Backup invitation code (keep private):</p><input readOnly value={code} onFocus={e => e.target.select()} /></>}
+          {inviteLink && (
+  <div style={{ marginTop: 10 }}>
+    <label>Share this invitation link</label>
+
+    <input
+      readOnly
+      value={inviteLink}
+      onFocus={e => e.target.select()}
+    />
+
+    <button
+      type="button"
+      className="btn g"
+      onClick={() => navigator.clipboard.writeText(inviteLink)}
+    >
+      Copy invite link
+    </button>
+  </div>
+)}
           {msg && <div className="err">{msg}</div>}
         </div>
       )}
@@ -2514,6 +2574,15 @@ useEffect(() => {
   checkAdmin()
 }, [])
   const [kids, setKids] = useState([]), [cid, setCid] = useState(null), [tab, setTab] = useState('goals'), [err, setErr] = useState('')
+  const [inviteMode, setInviteMode] = useState(false)
+
+useEffect(() => {
+  const token = new URLSearchParams(window.location.search).get('invite')
+
+  if (token) {
+    setInviteMode(true)
+  }
+}, [])
   const [showAllGoals, setShowAllGoals] = useState(false)
   const [d, setD] = useState({ goals: [], logs: [], stos: [], beh: [], team: [], names: {} }), [nk, setNk] = useState('')
   const chk = r => { if (r.error) { setErr(r.error.message); return [] } return r.data || [] }
@@ -2568,7 +2637,14 @@ useEffect(() => {
 useEffect(() => {
   loadApprovalRequests()
 }, [loadApprovalRequests])
-  const joined = async id => { await loadKids(); setCid(id) }
+  const joined = async id => {
+  await loadKids()
+  setCid(id)
+  setInviteMode(false)
+  setTab('goals')
+
+  window.history.replaceState({}, '', window.location.pathname)
+}
 async function reviewApprovalRequest(requestId, decision) {
   setErr('')
 
@@ -2606,7 +2682,9 @@ async function reviewApprovalRequest(requestId, decision) {
     if (r.error) return setErr(r.error.message)
     setNk(''); setErr(''); await loadKids(); setCid(r.data.id); setTab('goals')
   }
-
+if (inviteMode) {
+  return <Join onDone={joined} />
+}
  return (
   <div>
     <div className="row" style={{ alignItems: 'center' }}>
