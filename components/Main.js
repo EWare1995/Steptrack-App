@@ -2688,12 +2688,30 @@ if (inviteMode) {
  return (
   <div>
     <div className="row" style={{ alignItems: 'center' }}>
-      <div className="brand">
-        <div className="brand-text">
-          <h1>StepTrack</h1>
-          <span>Progress, one step at a time.</span>
-        </div>
-      </div>
+      <div
+  className="brand"
+  style={{
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px'
+  }}
+>
+  <img
+    src="/steptrack-symbol.png"
+    alt="StepTrack logo"
+    style={{
+      width: '52px',
+      height: '52px',
+      objectFit: 'contain',
+      flexShrink: 0
+    }}
+  />
+
+  <div className="brand-text">
+    <h1>StepTrack</h1>
+    <span>Progress, one step at a time.</span>
+  </div>
+</div>
 
       <button
         className="x"
