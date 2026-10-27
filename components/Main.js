@@ -1693,7 +1693,7 @@ const plainGoalProgress = (goal, rows) => {
     const baselineValid = Number(goal.baseline_total_trials) > 0 && goal.baseline != null
     const baselinePercent = baselineValid ? Math.round(Number(goal.baseline) / Number(goal.baseline_total_trials) * 100) : null
     const change = baselineValid ? latestPercent - baselinePercent : null
-    const direction = change == null ? '' : change > 0 ? ` up ${change} percentage points from the starting baseline` : change < 0 ? ` down ${Math.abs(change)} percentage points from the starting baseline` : ', unchanged from the starting baseline'
+    const direction = change == null ? '' : change > 0 ? `, up ${change} percentage points from the starting baseline` : change < 0 ? `, down ${Math.abs(change)} percentage points from the starting baseline` : ', unchanged from the starting baseline'
     return `Latest accuracy: ${latestPercent}%${direction}.`
   }
   return 'The latest result and goal target are shown below.'
@@ -1794,7 +1794,7 @@ function Report({ kid, goals, logs, beh, stos }) {
       }}>
         {r.g.area} · {r.n} {r.n === 1 ? 'entry' : 'entries'}
       </div>
-       <div className="report-insight" aria-label="Progress explained"><span aria-hidden="true">↗</span>{r.insight}</div>
+       <div className="report-insight" aria-label="Progress explained"><span aria-hidden="true">ⓘ</span>{r.insight}</div>
 
       <div style={{
         display: 'grid',
