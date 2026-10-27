@@ -1678,6 +1678,26 @@ setF({
   )
 }
 
+const recentTrialSummary = rows => {
+  const valid = rows.slice(-5).filter(x => Number(x.trial_total) > 0 && Number.isFinite(Number(x.value)))
+  if (!valid.length) return '—'
+  const correct = valid.reduce((sum, row) => sum + Number(row.value), 0)
+  const total = valid.reduce((sum, row) => sum + Number(row.trial_total), 0)
+  return `${correct}/${total} (${Math.round(correct / total * 100)}%)`
+}
+const plainGoalProgress = (goal, rows) => {
+  if (!rows.length) return 'No progress has been logged yet.'
+  const latest = rows[rows.length - 1]
+  if (goal.measure_type === 'trials' && Number(latest.trial_total) > 0) {
+    const latestPercent = Math.round(Number(latest.value) / Number(latest.trial_total) * 100)
+    const baselineValid = Number(goal.baseline_total_trials) > 0 && goal.baseline != null
+    const baselinePercent = baselineValid ? Math.round(Number(goal.baseline) / Number(goal.baseline_total_trials) * 100) : null
+    const change = baselineValid ? latestPercent - baselinePercent : null
+    const direction = change == null ? '' : change > 0 ? ` up ${change} percentage points from the starting baseline` : change < 0 ? ` down ${Math.abs(change)} percentage points from the starting baseline` : ', unchanged from the starting baseline'
+    return `Latest accuracy: ${latestPercent}%${direction}.`
+  }
+  return 'The latest result and goal target are shown below.'
+}
 function Report({ kid, goals, logs, beh, stos }) {
   const [showAllBehavior, setShowAllBehavior] = useState(false)
   const reportValue = (g, log) => {
@@ -1711,14 +1731,21 @@ function Report({ kid, goals, logs, beh, stos }) {
 }
   const R = goals.map(g => {
     const v = gv(g, logs), r = v.slice(-5)
-    const a = r.length ? (r.reduce((s, x) => s + x.value, 0) / r.length).toFixed(1) : '-'
-    const ind = r.length ? Math.round(r.filter(x => x.prompt_level === 'Independent').length / r.length * 100) + '%' : '-'
+    const a = r.length && g.measure_type !== 'trials' ? (r.reduce((s, x) => s + Number(x.value || 0), 0) / r.length).toFixed(1) : '—'
+    const avgDisplay = g.measure_type === 'trials' ? recentTrialSummary(v) : a
+    const ind = r.length ? Math.round(r.filter(x => decodeSupports(x.prompt_level).includes('Independent')).length / r.length * 100) + '%' : '—'
+    const qualifiedDays = g.measure_type === 'trials' ? trialDays(g, v).filter(d => d.qualifies).length : 0
+    const requiredDays = Math.max(1, Number(g.mastery_count) || 3)
     return {
   g,
   latestLog: v.length ? v[v.length - 1] : null,
   l: v.length ? v[v.length - 1].value : '—',
   a,
+  avgDisplay,
   ind,
+  insight: plainGoalProgress(g, v),
+  qualifiedDays,
+  requiredDays,
   st: status(g, v),
   n: v.length
 }
@@ -1728,7 +1755,7 @@ function Report({ kid, goals, logs, beh, stos }) {
   ? b5.slice().reverse()
   : b5.slice(-3).reverse()
   const txt = `Progress report: ${kid.name} (${today()})\n\n` +
-    (R.map(r => `${r.g.title} [${r.g.area}] target ${r.g.direction === 'down' ? '<=' : '>='}${r.g.target} ${r.g.unit}; latest ${r.l}; avg last 5 ${r.a}; independent ${r.ind}; ${r.st}${r.g.supports ? '; supports: ' + r.g.supports : ''}`).join('\n') || 'No goals') +
+    (R.map(r => `${r.g.title} [${r.g.area}] target ${r.g.measure_type === 'trials' ? r.g.target + '/' + r.g.total_trials + ' opportunities' : r.g.target + ' ' + (r.g.unit || '')}; latest ${reportValue(r.g, r.latestLog)}; recent performance ${r.avgDisplay}; ${r.g.measure_type === 'trials' ? r.qualifiedDays + '/' + r.requiredDays + ' qualifying days; ' : ''}independent ${r.ind}; ${r.st}${r.g.supports ? '; supports: ' + r.g.supports : ''}`).join('\n') || 'No goals') +
     `\n\nBehavior: ${b30.length} logged in 30 days\n` + b5.map(e => `${e.logged_on} ${e.intensity}: ${e.antecedent} -> ${e.behavior} -> ${e.consequence}`).join('\n')
   return (
     <div className="card">
@@ -1767,6 +1794,7 @@ function Report({ kid, goals, logs, beh, stos }) {
       }}>
         {r.g.area} · {r.n} {r.n === 1 ? 'entry' : 'entries'}
       </div>
+       <div className="report-insight" aria-label="Progress explained"><span aria-hidden="true">↗</span>{r.insight}</div>
 
       <div style={{
         display: 'grid',
@@ -1781,7 +1809,7 @@ function Report({ kid, goals, logs, beh, stos }) {
       color: '#6b7280'
     }}
   >
-    BASELINE
+    STARTING POINT
   </div>
 
   <div style={{ marginTop: '4px' }}>
@@ -1801,7 +1829,7 @@ function Report({ kid, goals, logs, beh, stos }) {
 </div>
         <div>
           <div style={{ fontSize: '11px', fontWeight: '700', color: '#6b7280' }}>
-            TARGET
+            GOAL TARGET
           </div>
           <div style={{ marginTop: '4px' }}>
             {r.g.measure_type === 'trials' && r.g.total_trials
@@ -1817,7 +1845,7 @@ function Report({ kid, goals, logs, beh, stos }) {
 
         <div>
           <div style={{ fontSize: '11px', fontWeight: '700', color: '#6b7280' }}>
-            LATEST
+            MOST RECENT
           </div>
           <div style={{ marginTop: '4px' }}>
             {reportValue(r.g, r.latestLog)}
@@ -1826,12 +1854,12 @@ function Report({ kid, goals, logs, beh, stos }) {
 
         <div>
           <div style={{ fontSize: '11px', fontWeight: '700', color: '#6b7280' }}>
-            AVG. LAST 5
+            RECENT PERFORMANCE
           </div>
           <div style={{ marginTop: '4px' }}>
-            {r.g.measure_type === 'trials' && r.g.total_trials
-  ? `${r.a}/${r.g.total_trials}`
-  : r.g.measure_type === 'percentage'
+            {r.g.measure_type === 'trials'
+   ? r.avgDisplay
+   : r.g.measure_type === 'percentage'
   ? `${r.a}%`
   : r.g.measure_type === 'duration'
   ? `${r.a} ${r.g.unit || 'minutes'}`
@@ -1855,7 +1883,7 @@ function Report({ kid, goals, logs, beh, stos }) {
     </div>
 
     <div style={{ marginTop: '4px' }}>
-      {r.ind}%
+      {r.ind}
     </div>
   </div>
 )}
@@ -1871,7 +1899,7 @@ function Report({ kid, goals, logs, beh, stos }) {
           fontWeight: '700',
           color: '#6b7280'
         }}>
-          STATUS
+          GOAL PROGRESS
         </span>
 
         <div style={{
@@ -1883,58 +1911,36 @@ function Report({ kid, goals, logs, beh, stos }) {
           {r.st}
         </div>
       </div>
+       {r.g.measure_type === 'trials' && Number(r.g.total_trials) > 0 && (
+         <div className="report-mastery">
+           <div className="report-mastery-heading"><strong>Mastery progress</strong><span>{Math.min(r.qualifiedDays, r.requiredDays)} of {r.requiredDays} qualifying days</span></div>
+           <div className="report-mastery-track" role="progressbar" aria-label="Qualifying trial days toward mastery" aria-valuemin={0} aria-valuemax={r.requiredDays} aria-valuenow={Math.min(r.qualifiedDays, r.requiredDays)}>
+             <div style={{ width: Math.min(100, r.qualifiedDays / r.requiredDays * 100) + '%' }} />
+           </div>
+           <p>{r.qualifiedDays >= r.requiredDays ? 'Required qualifying days reached.' : (r.requiredDays - r.qualifiedDays) + ' more qualifying ' + (r.requiredDays - r.qualifiedDays === 1 ? 'day' : 'days') + ' needed.'} The dates do not need to be consecutive.</p>
+         </div>
+       )}
       {stos
   .filter(o => o.goal_id === r.g.id)
   .map((o, index) => (
-    <div
-      key={o.id || index}
-      style={{
-        borderTop: '1px solid #e5e7eb',
-        marginTop: 14,
-        paddingTop: 12
-      }}
-    >
-      <div
-        style={{
-          fontSize: '12px',
-          fontWeight: '700',
-          color: '#6b7280',
-          marginBottom: 6
-        }}
-      >
-        STO {index + 1}
+    <details key={o.id || index} className="report-sto">
+      <summary>
+        <span className="report-sto-title"><strong>STO {index + 1}</strong><span>{o.title}</span></span>
+        <span className="report-sto-status">{stLabel(o.status || 'not_started')}</span>
+      </summary>
+      <div className="report-sto-body">
+        <div><b>Starting point:</b> {o.measurement_type === 'trials'
+          ? `${o.baseline ?? '—'}${o.baseline_total_trials ? '/' + o.baseline_total_trials : ''}`
+          : stoFmt(o.measurement_type, o.baseline, o.unit)}</div>
+        <div><b>Target:</b> {o.measurement_type === 'trials'
+          ? `${o.target ?? '—'}${o.target_total_trials ? '/' + o.target_total_trials : ''}`
+          : stoFmt(o.measurement_type, o.target, o.unit)}</div>
+        <div><b>Target date:</b> {o.target_date
+          ? new Date(`${String(o.target_date).slice(0, 10)}T00:00:00`).toLocaleDateString()
+          : '—'}</div>
+        {o.supports && <div><b>Supports:</b> {o.supports}</div>}
       </div>
-      <div className="sm" style={{ marginTop: 8 }}>
-  <b>Status:</b>{' '}
-  <span
-    className="tag"
-    style={{ textTransform: 'capitalize' }}
-  >
-    {String(o.status || 'not_started').replaceAll('_', ' ')}
-  </span>
-</div>
-
-<div className="sm">
-  <b>Baseline:</b>{' '}
-  {o.measurement_type === 'trials'
-    ? `${o.baseline ?? '—'}${o.baseline_total_trials ? `/${o.baseline_total_trials}` : ''}`
-    : stoFmt(o.measurement_type, o.baseline, o.unit)}
-</div>
-
-<div className="sm">
-  <b>Target:</b>{' '}
-  {o.measurement_type === 'trials'
-    ? `${o.target ?? '—'}${o.target_total_trials ? `/${o.target_total_trials}` : ''}`
-    : stoFmt(o.measurement_type, o.target, o.unit)}
-</div>
-
-<div className="sm">
-  <b>Target date:</b>{' '}
-  {o.target_date
-    ? new Date(`${String(o.target_date).slice(0, 10)}T00:00:00`).toLocaleDateString()
-    : '—'}
-</div>
-    </div>
+    </details>
   ))}
 </div>
   ))}
