@@ -785,3 +785,17 @@ table {
   .report-sto summary { gap: 8px; }
   .report-sto-title span { font-size: 12px; }
 }
+
+/* Compact 30-day behavior breakdown inside the Progress report */
+.report-behavior-counts {
+  margin: 14px 0 18px;
+  padding: 14px;
+  background: #f3f8fe;
+  border: 1px solid #dce9f8;
+  border-radius: 13px;
+}
+.report-behavior-counts .behavior-monthly-stats { margin-top: 0; }
+.report-behavior-counts .behavior-monthly-explain { margin-top: 13px; }
+@media (max-width: 600px) {
+  .report-behavior-counts { padding: 11px; }
+}
