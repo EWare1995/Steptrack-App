@@ -1,9 +1,5 @@
 import OpenAI from 'openai'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-})
-
 export async function POST(request) {
   try {
     const formData = await request.formData()
@@ -22,6 +18,16 @@ export async function POST(request) {
         { status: 400 }
       )
     }
+
+    // Initialize the scanner only for a request, not during preview builds.
+    const apiKey = process.env.OPENAI_API_KEY
+    if (!apiKey) {
+      return Response.json(
+        { error: 'Goal scanning is not configured in this environment.' },
+        { status: 503 }
+      )
+    }
+    const openai = new OpenAI({ apiKey })
 
     const bytes = await file.arrayBuffer()
     const base64 = Buffer.from(bytes).toString('base64')
