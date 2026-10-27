@@ -749,3 +749,39 @@ table {
   .behavior-monthly-stats strong { font-size: 21px; }
   .behavior-monthly-stats span { font-size: 10px; }
 }
+
+/* Parent-friendly Progress report enhancements */
+.report-insight {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 12px;
+  margin: -2px 0 17px;
+  border: 1px solid #d6e9f6;
+  background: #eef7ff;
+  color: #315b7e;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.report-insight span { color: #1682c9; font-weight: 800; font-size: 17px; }
+.report-mastery { margin-top: 14px; padding: 13px; border-radius: 11px; background: #eef7ff; border: 1px solid #dcebf8; }
+.report-mastery-heading { display: flex; gap: 10px; justify-content: space-between; font-size: 13px; color: #305578; }
+.report-mastery-heading span { color: #135da5; font-weight: 700; font-variant-numeric: tabular-nums; }
+.report-mastery-track { height: 10px; margin: 11px 0 8px; background: #dae8f8; border-radius: 999px; overflow: hidden; }
+.report-mastery-track > div { height: 100%; background: linear-gradient(90deg, #46a9e6, #1978b9); border-radius: inherit; }
+.report-mastery p { font-size: 12px; color: #607a96; margin: 0; line-height: 1.5; }
+.report-sto { border-top: 1px solid #e5edf7; margin-top: 12px; padding-top: 10px; }
+.report-sto summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; list-style: none; }
+.report-sto summary::-webkit-details-marker { display: none; }
+.report-sto summary::after { content: '+'; order: 3; color: #447ba9; font-weight: 800; font-size: 19px; }
+.report-sto[open] summary::after { content: '−'; }
+.report-sto-title { display: flex; flex-direction: column; gap: 3px; min-width: 0; color: #243c5b; font-size: 12px; line-height: 1.4; }
+.report-sto-title span { font-size: 13px; overflow-wrap: anywhere; }
+.report-sto-status { margin-left: auto; border-radius: 999px; padding: 5px 9px; background: #e6f0fd; color: #316a9c; white-space: nowrap; font-size: 11px; font-weight: 700; }
+.report-sto-body { margin: 12px 0 2px; padding: 12px; background: #fff; border: 1px solid #e0ebf7; border-radius: 9px; display: grid; gap: 8px; font-size: 12px; line-height: 1.5; color: #385571; }
+@media (max-width: 600px) {
+  .report-mastery-heading { flex-wrap: wrap; }
+  .report-sto summary { gap: 8px; }
+  .report-sto-title span { font-size: 12px; }
+}
