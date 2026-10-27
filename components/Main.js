@@ -279,7 +279,9 @@ function GoalCard({ g, logs, stos = [], names, uid, parent, canEdit, onEdit, onA
   const v = gv(g, logs), r = v.slice(-5), last = v[v.length - 1]
   const ind = r.filter(x => x.prompt_level === 'Independent').length
   const [f, setF] = useState({ value: '', trialTotal: '', date: today(), p: 'Independent', w: 'Home', n: '' }), [c, setC] = useState(false), [ed, setEd] = useState(null)
+  const [trialResponses, setTrialResponses] = useState([])
   const [showAllLogs, setShowAllLogs] = useState(false)
+  
 
 const visibleLogs = showAllLogs
   ? v.slice().reverse()
@@ -398,6 +400,49 @@ const visibleLogs = showAllLogs
     />
   </div>
 )}
+          {g.measure_type === 'trials' && (
+  <div style={{ marginTop: 12, marginBottom: 12 }}>
+    <label>Record trial results</label>
+
+    <div className="row" style={{ gap: 10 }}>
+      <button
+        type="button"
+        onClick={() =>
+          setTrialResponses(prev => [...prev, 'X'])
+        }
+      >
+        X — Correct
+      </button>
+
+      <button
+        type="button"
+        onClick={() =>
+          setTrialResponses(prev => [...prev, 'O'])
+        }
+      >
+        O — Incorrect
+      </button>
+    </div>
+
+    <div style={{ marginTop: 10 }}>
+      {trialResponses.join(' ')}
+    </div>
+
+    <div style={{ marginTop: 8 }}>
+      Successful trials: {trialResponses.filter(x => x === 'X').length}
+      {' / '}
+      {trialResponses.length}
+    </div>
+
+    <button
+      type="button"
+      disabled={trialResponses.length === 0}
+      onClick={() => setTrialResponses(prev => prev.slice(0, -1))}
+    >
+      Undo last
+    </button>
+  </div>
+)}
           <div><label>Date</label><input type="date" value={f.date} onChange={set('date')} style={{ marginBottom: 0 }} /></div>
         </div>
         <div className="row" style={{ marginTop: 8 }}>
@@ -406,10 +451,59 @@ const visibleLogs = showAllLogs
         </div>
         <input placeholder="Note: what helped?" value={f.n} onChange={set('n')} style={{ marginTop: 8 }} />
         <button className="btn" onClick={async () => {
-          if (f.value === '') return
-          await onLog({ goal_id: g.id, value: +f.value, trial_total: g.measure_type === 'trials' && f.trialTotal ? Number(f.trialTotal) : null, logged_on: f.date || today(), prompt_level: f.p, setting: f.w, note: f.n.trim() })
-          setF({ ...f, value: '', trialTotal: '', n: '' })
-        }}>Log</button>
+  const isTrials = g.measure_type === 'trials';
+  const hasResponses = isTrials && trialResponses.length > 0;
+
+  const successful = trialResponses.filter(x => x === 'X').length;
+  const total = trialResponses.length;
+
+  const value = hasResponses ? String(successful) : f.value;
+  const trialTotal = hasResponses ? String(total) : f.trialTotal;
+
+  if (value === '') return;
+
+  if (isTrials) {
+    const successes = Number(value);
+    const attempts = Number(trialTotal);
+
+    if (
+      !Number.isInteger(successes) ||
+      !Number.isInteger(attempts) ||
+      attempts < 1 ||
+      successes < 0 ||
+      successes > attempts
+    ) {
+      alert('Enter valid trial results.');
+      return;
+    }
+  }
+
+  try {
+    await onLog({
+      goal_id: g.id,
+      value: Number(value),
+      trial_total: isTrials ? Number(trialTotal) : null,
+      logged_on: f.date,
+      prompt_level: f.p,
+      setting: f.w,
+      note: f.n
+    });
+
+    setF({
+      ...f,
+      value: '',
+      trialTotal: '',
+      n: ''
+    });
+
+    if (hasResponses) {
+      setTrialResponses([]);
+    }
+  } catch (error) {
+    console.error('Failed to save trial log:', error);
+    alert('The log could not be saved. Your trial results have been kept.');
+  }
+}}>Log</button>
       </div>
       {visibleLogs.map(x => (
         <div className="sm" key={x.id}>

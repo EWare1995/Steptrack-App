@@ -28,8 +28,11 @@ export async function POST(request) {
     const imageUrl = `data:${file.type};base64,${base64}`
 
     const response = await openai.responses.create({
-      model: 'gpt-4.1-mini',
-      input: [
+  model: 'gpt-4.1-mini',
+  text: {
+    format: { type: 'json_object' }
+  },
+  input: [
         {
           role: 'user',
           content: [
@@ -111,7 +114,19 @@ Rules:
       ]
     })
 
-    const extracted = JSON.parse(response.output_text)
+    const output = response.output_text
+
+if (!output) {
+  throw new Error('The AI returned an empty response. Please try again.')
+}
+
+let extracted
+
+try {
+  extracted = JSON.parse(output)
+} catch {
+  throw new Error('The AI returned an invalid response. Please try scanning again.')
+}
 
     return Response.json(extracted)
   } catch (error) {
