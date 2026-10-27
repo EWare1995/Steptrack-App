@@ -5,6 +5,18 @@ import { supabase } from '../lib/supabase'
 const AREAS = ['Fine motor', 'Gross motor', 'Speech', 'Self-care', 'Social', 'Behavior']
 const PL = ['Independent', 'Gesture', 'Verbal', 'Physical', 'Visual', 'Redirection']
 const decodeSupports = value => String(value || '').split(',').map(x => x.trim()).filter(Boolean)
+const EXTRA_SUPPORT_NOTE_PREFIX = '[StepTrack additional supports: '
+const additionalSupportsFromNote = note => {
+  const marker = String(note || '').split('\n').find(line => line.startsWith(EXTRA_SUPPORT_NOTE_PREFIX) && line.endsWith(']'))
+  return marker ? decodeSupports(marker.slice(EXTRA_SUPPORT_NOTE_PREFIX.length, -1)) : []
+}
+const logSupports = log => [...new Set([...decodeSupports(log.prompt_level), ...additionalSupportsFromNote(log.note)])]
+const logNoteText = note => String(note || '').split('\n').filter(line => !(line.startsWith(EXTRA_SUPPORT_NOTE_PREFIX) && line.endsWith(']'))).join('\n').trim()
+const noteWithAdditionalSupports = (note, supports) => {
+  const additional = supports.slice(1)
+  return [String(note || '').trim(), ...(additional.length ? [EXTRA_SUPPORT_NOTE_PREFIX + additional.join(', ') + ']'] : [])]
+    .filter(Boolean).join('\n')
+}
 const trialDays = (g, logs) => {
   const byDate = new Map()
   for (const log of logs) {
@@ -574,9 +586,9 @@ const visibleLogs = showAllLogs
               value: Number(value),
               trial_total: isTrials ? Number(trialTotal) : null,
               logged_on: f.date,
-              prompt_level: f.p.join(', '),
+              prompt_level: f.p[0],
               setting: f.w,
-              note: f.n
+              note: noteWithAdditionalSupports(f.n, f.p)
             })
             if (saved !== true) {
               setLogError('The log was not saved. Your entries have been kept.')
@@ -600,7 +612,7 @@ const visibleLogs = showAllLogs
     ? `${x.value} ${g.unit || 'minutes'}`
     : g.measure_type === 'percentage'
       ? `${x.value}%`
-      : x.value} · {x.prompt_level} · {x.setting} · {names[x.logged_by] || 'Member'}{x.note ? ' · ' + x.note : ''}{' '}
+      : x.value} · {logSupports(x).join(', ')} · {x.setting} · {names[x.logged_by] || 'Member'}{logNoteText(x.note) ? ' · ' + logNoteText(x.note) : ''}{' '}
           {(x.logged_by === uid || parent) && <button className="x" onClick={() => onDelLog(x.id)}>remove</button>}
         </div>
       ))}
