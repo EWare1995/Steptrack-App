@@ -1196,6 +1196,33 @@ setScanPreview(previewUrl)
   )
 }
 
+const summarizeBehaviorMonth = (entries, month) => {
+  const monthEntries = entries.filter(e => String(e.logged_on || '').slice(0, 7) === month)
+  const types = new Map()
+  const daysInMonth = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate()
+  const days = new Set()
+  const weekly = [0, 0, 0, 0, 0]
+  let selections = 0
+  for (const entry of monthEntries) {
+    days.add(entry.logged_on)
+    const day = Number(String(entry.logged_on).slice(8, 10))
+    if (day >= 1 && day <= 31) weekly[Math.min(4, Math.floor((day - 1) / 7))]++
+    const unique = new Set(String(entry.behavior || '').split(',').map(b => b.trim()).filter(Boolean))
+    for (const name of unique) {
+      types.set(name, (types.get(name) || 0) + 1)
+      selections++
+    }
+  }
+  return {
+    incidents: monthEntries.length,
+    selections,
+    activeDays: days.size,
+    daysInMonth,
+    weekly,
+    types: [...types.entries()].map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+  }
+}
 function Behavior({ beh, names, uid, parent, onAdd, onDel }) {
   const [f, setF] = useState({
   a: '',
@@ -1212,10 +1239,53 @@ function Behavior({ beh, names, uid, parent, onAdd, onDel }) {
 })
   const set = k => e => setF({ ...f, [k]: e.target.value })
   const n7 = beh.filter(e => e.logged_on >= ago(7)).length
+  const [month, setMonth] = useState(today().slice(0, 7))
+  const [showAllTypes, setShowAllTypes] = useState(false)
+  const summary = summarizeBehaviorMonth(beh, month)
+  const monthLabel = new Date(month + '-15T12:00:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+  const maxBehaviorCount = Math.max(1, ...summary.types.map(t => t.count))
+  const maxWeekCount = Math.max(1, ...summary.weekly)
+
   return (
     <>
       <div className="card">
         <h2>Behavior log</h2><div className="sm">{n7} logged in the last 7 days</div>
+        <section className="behavior-monthly-summary" aria-label="Monthly behavior summary">
+          <div className="behavior-monthly-heading">
+            <div><h3>Monthly behavior overview</h3><p>Review recorded behaviors over a calendar month.</p></div>
+            <div><label htmlFor="behavior-summary-month">Month</label><input id="behavior-summary-month" type="month" value={month} onChange={e => { setMonth(e.target.value || today().slice(0, 7)); setShowAllTypes(false) }} /></div>
+          </div>
+          <div className="behavior-monthly-stats">
+            <div><span>Incident entries</span><strong>{summary.incidents}</strong></div>
+            <div><span>Behaviors recorded</span><strong>{summary.selections}</strong></div>
+            <div><span>Days with entries</span><strong>{summary.activeDays}</strong></div>
+          </div>
+          {summary.incidents === 0 ? (
+            <p className="behavior-monthly-empty">No behavior entries recorded for {monthLabel}.</p>
+          ) : (
+            <>
+              <div className="behavior-monthly-subheading">Entries during {monthLabel}</div>
+              <div className="behavior-weekly-bars" aria-label="Entries by week of month">
+                {summary.weekly.slice(0, Math.ceil(summary.daysInMonth / 7)).map((count, index) => (
+                  <div key={index} className="behavior-week">
+                    <div className="behavior-week-track"><div style={{ height: (count ? Math.max(10, Math.round(count / maxWeekCount * 100)) : 0) + '%' }} /></div>
+                    <strong>{count}</strong><span>{(index * 7 + 1) + '–' + Math.min(summary.daysInMonth, index * 7 + 7)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="behavior-monthly-subheading">Behavior breakdown</div>
+              {(showAllTypes ? summary.types : summary.types.slice(0, 5)).map(type => (
+                <div key={type.name} className="behavior-type-row">
+                  <div><span>{type.name}</span><strong>{type.count}</strong></div>
+                  <div className="behavior-type-track"><div style={{ width: (type.count / maxBehaviorCount * 100) + '%' }} /></div>
+                </div>
+              ))}
+              {summary.types.length > 5 && <button type="button" className="behavior-show-types" onClick={() => setShowAllTypes(x => !x)}>{showAllTypes ? 'Show fewer behaviors' : 'View all ' + summary.types.length + ' behaviors'}</button>}
+            </>
+          )}
+          <p className="behavior-monthly-explain">Each entry counts as one incident. When multiple behaviors are selected in an entry, each appears once in the behavior breakdown. These numbers reflect recorded entries, not every unlogged occurrence.</p>
+        </section>
+
         <label>What happened before?</label>
 
 <select value={f.a} onChange={set('a')}>
