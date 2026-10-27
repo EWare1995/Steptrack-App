@@ -2960,7 +2960,7 @@ if (inviteMode) {
                     setErr('Log saved, but the list could not refresh. Reload to see the entry.')
                   }
                   return true
-                }
+                }}
                 onDelLog={id =>
                   run(supabase.from('logs').delete().eq('id', id))
                 }
