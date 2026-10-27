@@ -306,3 +306,278 @@ table {
     font-size: 11px;
   }
 }
+
+/* Goal trial recording: a single compact live/manual entry surface */
+.trial-panel {
+  padding: 16px;
+  border: 1px solid #cfe1f4;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f8fbff 0%, #f1f7ff 100%);
+}
+
+.trial-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.trial-heading h3 {
+  margin: 0;
+  color: #17345f;
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.trial-heading p,
+.trial-helper {
+  margin: 4px 0 0;
+  color: #61738b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.trial-badge {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #e1efff;
+  color: #235f9d;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.trial-mode-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  margin: 14px 0;
+  border: 1px solid #d8e6f5;
+  border-radius: 12px;
+  background: #eaf2fb;
+}
+
+.trial-mode-switch button {
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #516b8d;
+  padding: 10px 8px;
+  min-height: 42px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.trial-mode-switch button.active {
+  color: #155ca4;
+  background: #ffffff;
+  box-shadow: 0 2px 7px rgba(28, 65, 107, 0.11);
+}
+
+.trial-actions,
+.trial-manual {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.trial-action {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.trial-action:active {
+  transform: scale(0.98);
+}
+
+.trial-action span {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.75);
+  font-size: 15px;
+}
+
+.trial-action.correct {
+  color: #116c51;
+  background: #dff7ed;
+  border-color: #a9e6d0;
+}
+
+.trial-action.correct:hover { background: #cef1e1; }
+
+.trial-action.incorrect {
+  color: #a44235;
+  background: #ffebe7;
+  border-color: #f5c6bd;
+}
+
+.trial-action.incorrect:hover { background: #ffddd5; }
+
+.trial-history {
+  padding: 12px;
+  min-height: 64px;
+  margin-top: 12px;
+  background: #ffffff;
+  border: 1px solid #dce9f6;
+  border-radius: 12px;
+}
+
+.trial-history-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: #61738b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.trial-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+  max-height: 112px;
+  overflow-y: auto;
+}
+
+.trial-chip {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.trial-chip.correct { color: #116c51; background: #dff7ed; }
+.trial-chip.incorrect { color: #a44235; background: #ffebe7; }
+
+.trial-empty {
+  color: #78889b;
+  font-size: 12px;
+  margin: 10px 0 0;
+}
+
+.trial-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 10px 0 0;
+}
+
+.trial-edit-actions button {
+  border: 0;
+  background: transparent;
+  color: #176cba;
+  padding: 5px 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.trial-edit-actions button:disabled {
+  color: #9aa8b9;
+  cursor: default;
+}
+
+.trial-manual input {
+  margin-bottom: 0;
+}
+
+.trial-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.trial-stats > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 4px;
+  border: 1px solid #dce9f6;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.trial-stats span {
+  color: #6c7c91;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.trial-stats strong {
+  color: #17345f;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.trial-progress {
+  height: 7px;
+  overflow: hidden;
+  margin: 12px 0 7px;
+  background: #d9e7f6;
+  border-radius: 999px;
+}
+
+.trial-progress > div {
+  height: 100%;
+  background: linear-gradient(90deg, #55c7f3, #1677f2);
+  border-radius: inherit;
+  transition: width 0.18s ease;
+}
+
+.trial-helper { margin-top: 6px; }
+
+.trial-context-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.trial-context-fields input,
+.trial-context-fields select {
+  margin-bottom: 0;
+}
+
+.trial-other-value {
+  max-width: 260px;
+}
+
+.trial-panel button:focus-visible,
+.trial-edit-actions button:focus-visible {
+  outline: 3px solid #1677f2;
+  outline-offset: 2px;
+}
+
+@media (max-width: 600px) {
+  .trial-panel { padding: 13px; border-radius: 13px; }
+  .trial-heading h3 { font-size: 16px; }
+  .trial-action { min-height: 54px; gap: 5px; font-size: 13px; }
+  .trial-action span { width: 25px; height: 25px; }
+  .trial-context-fields { grid-template-columns: 1fr; gap: 6px; }
+  .trial-stats strong { font-size: 20px; }
+}
