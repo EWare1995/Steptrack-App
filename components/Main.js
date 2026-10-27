@@ -1698,8 +1698,19 @@ const plainGoalProgress = (goal, rows) => {
   }
   return 'The latest result and goal target are shown below.'
 }
+const countRecordedBehaviors = entries => {
+  const types = new Map()
+  for (const entry of entries) {
+    const unique = new Set(String(entry.behavior || '').split(',').map(value => value.trim()).filter(Boolean))
+    for (const type of unique) types.set(type, (types.get(type) || 0) + 1)
+  }
+  const counts = [...types].map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+  return { counts, total: counts.reduce((sum, type) => sum + type.count, 0) }
+}
 function Report({ kid, goals, logs, beh, stos }) {
   const [showAllBehavior, setShowAllBehavior] = useState(false)
+  const [showAllReportBehaviorTypes, setShowAllReportBehaviorTypes] = useState(false)
   const reportValue = (g, log) => {
   if (!log) return '—'
 
@@ -1750,13 +1761,16 @@ function Report({ kid, goals, logs, beh, stos }) {
   n: v.length
 }
   })
-  const b30 = beh.filter(e => e.logged_on >= ago(30)), b5 = beh.slice(-5)
+  const b30 = beh.filter(e => e.logged_on && e.logged_on >= ago(30) && e.logged_on <= today())
+  const b5 = b30.slice(-5)
+  const behaviorBreakdown = countRecordedBehaviors(b30)
+  const maxReportBehavior = Math.max(1, ...behaviorBreakdown.counts.map(x => x.count))
   const visibleBehaviors = showAllBehavior
   ? b5.slice().reverse()
   : b5.slice(-3).reverse()
   const txt = `Progress report: ${kid.name} (${today()})\n\n` +
     (R.map(r => `${r.g.title} [${r.g.area}] target ${r.g.measure_type === 'trials' ? r.g.target + '/' + r.g.total_trials + ' opportunities' : r.g.target + ' ' + (r.g.unit || '')}; latest ${reportValue(r.g, r.latestLog)}; recent performance ${r.avgDisplay}; ${r.g.measure_type === 'trials' ? r.qualifiedDays + '/' + r.requiredDays + ' qualifying days; ' : ''}independent ${r.ind}; ${r.st}${r.g.supports ? '; supports: ' + r.g.supports : ''}`).join('\n') || 'No goals') +
-    `\n\nBehavior: ${b30.length} logged in 30 days\n` + b5.map(e => `${e.logged_on} ${e.intensity}: ${e.antecedent} -> ${e.behavior} -> ${e.consequence}`).join('\n')
+    `\n\nBehavior: ${b30.length} incident entries; ${behaviorBreakdown.total} recorded behaviors over the last 30 days\n` + behaviorBreakdown.counts.map(x => `${x.name}: ${x.count}`).join('\n') + '\nRecent incidents:\n' + b5.map(e => `${e.logged_on} ${e.intensity}: ${e.antecedent} -> ${e.behavior} -> ${e.consequence}`).join('\n')
   return (
     <div className="card">
       <h2
@@ -1981,6 +1995,30 @@ function Report({ kid, goals, logs, beh, stos }) {
   }}>
     Last 30 days
   </div>
+  <section className="report-behavior-counts" aria-label="Recorded behavior counts">
+    <div className="behavior-monthly-stats">
+      <div><span>Incident entries</span><strong>{b30.length}</strong></div>
+      <div><span>Behaviors recorded</span><strong>{behaviorBreakdown.total}</strong></div>
+      <div><span>Behavior types</span><strong>{behaviorBreakdown.counts.length}</strong></div>
+    </div>
+    {behaviorBreakdown.counts.length ? (
+      <>
+        <div className="behavior-monthly-subheading">Most recorded behaviors</div>
+        {(showAllReportBehaviorTypes ? behaviorBreakdown.counts : behaviorBreakdown.counts.slice(0, 5)).map(type => (
+          <div key={type.name} className="behavior-type-row">
+            <div><span>{type.name}</span><strong>{type.count}</strong></div>
+            <div className="behavior-type-track"><div style={{ width: (type.count / maxReportBehavior * 100) + '%' }} /></div>
+          </div>
+        ))}
+        {behaviorBreakdown.counts.length > 5 && (
+          <button type="button" className="behavior-show-types" onClick={() => setShowAllReportBehaviorTypes(v => !v)}>
+            {showAllReportBehaviorTypes ? 'Show fewer behaviors' : 'View all ' + behaviorBreakdown.counts.length + ' behavior types'}
+          </button>
+        )}
+      </>
+    ) : <p className="sm">No behavior types recorded during this period.</p>}
+    <p className="behavior-monthly-explain">An entry counts as one incident. If multiple behaviors were selected, each type is counted once for that entry. These are recorded observations, not necessarily every occurrence.</p>
+  </section>
 
   <div style={{
     display: 'grid',
