@@ -41,6 +41,11 @@ function status(g, v) {
 }
 function pct(g, v) {
   if (!v.length) return 0
+  if (g.measure_type === 'trials' && Number(g.total_trials) > 0) {
+    const last = v[v.length - 1]
+    if (!Number(last.trial_total)) return 0
+    return cl(Number(last.value) / Number(last.trial_total))
+  }
   const l = v[v.length - 1].value
   if (g.direction === 'down') {
     const b = g.baseline ?? Math.max(v[0].value, g.target * 2)
@@ -50,12 +55,14 @@ function pct(g, v) {
   return cl((l - b) / ((g.target - b) || 1))
 }
 function Spark({ g, v }) {
-  const n = v.slice(-14).map(l => l.value)
+  const isTrials = g.measure_type === 'trials' && Number(g.total_trials) > 0
+  const n = v.slice(-14).map(l => isTrials && Number(l.trial_total) > 0 ? (Number(l.value) / Number(l.trial_total)) * 100 : Number(l.value))
   if (n.length < 2) return <div className="sm">Log 2+ entries to see a trend.</div>
-  const mx = Math.max(g.target, ...n) || 1, y = k => 54 - (k / mx) * 48, x = i => 4 + i * (292 / (n.length - 1))
+  const target = isTrials ? (Number(g.target) / Number(g.total_trials)) * 100 : Number(g.target)
+  const mx = Math.max(target, ...n) || 1, y = k => 54 - (k / mx) * 48, x = i => 4 + i * (292 / (n.length - 1))
   return (
     <svg viewBox="0 0 300 60" role="img" aria-label="trend">
-      <line x1="0" x2="300" y1={y(g.target)} y2={y(g.target)} stroke="var(--mu)" strokeDasharray="4 4" />
+      <line x1="0" x2="300" y1={y(target)} y2={y(target)} stroke="var(--mu)" strokeDasharray="4 4" />
       <polyline fill="none" stroke="var(--ac)" strokeWidth="2.5" points={n.map((k, i) => `${x(i)},${y(k)}`).join(' ')} />
     </svg>
   )
