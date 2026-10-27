@@ -279,7 +279,18 @@ function GoalCard({ g, logs, stos = [], names, uid, parent, canEdit, onEdit, onA
   const v = gv(g, logs), r = v.slice(-5), last = v[v.length - 1]
   const ind = r.filter(x => x.prompt_level === 'Independent').length
   const [f, setF] = useState({ value: '', trialTotal: '', date: today(), p: 'Independent', w: 'Home', n: '' }), [c, setC] = useState(false), [ed, setEd] = useState(null)
+  const [trialResponses, setTrialResponses] = useState([])
+  const [trialMode, setTrialMode] = useState('live')
+  const [savingLog, setSavingLog] = useState(false)
+  const [logError, setLogError] = useState('')
   const [showAllLogs, setShowAllLogs] = useState(false)
+  const correctTrials = trialResponses.filter(response => response === 'X').length
+  const trialCount = trialResponses.length
+  const shownCorrect = trialMode === 'live' ? correctTrials : (f.value === '' ? null : Number(f.value))
+  const shownTotal = trialMode === 'live' ? trialCount : (f.trialTotal === '' ? null : Number(f.trialTotal))
+  const validTrialStats = Number.isInteger(shownCorrect) && Number.isInteger(shownTotal) &&
+    shownTotal > 0 && shownCorrect >= 0 && shownCorrect <= shownTotal
+  
 
 const visibleLogs = showAllLogs
   ? v.slice().reverse()
@@ -345,71 +356,193 @@ const visibleLogs = showAllLogs
       {g.supports && <div className="sm"><b>Supports that help:</b> {g.supports}</div>}
       <StoSection stos={stos} canEdit={canEdit} onAdd={onAddSto} onEdit={onEditSto} onDel={onDelSto} />
       {r.length > 0 && <div className="sm">Independent in {ind} of last {r.length} entries</div>}
-      <div style={{ marginTop: 10 }}>
-        <div
-  className="row"
-  style={{
-    alignItems: 'flex-start',
-    flexWrap: 'wrap'
-  }}
->
-          <div>
-  <label>
-    {g.measure_type === 'percentage' ? 'Accuracy %' :
-     g.measure_type === 'trials' ? 'Successful trials' :
-     g.measure_type === 'duration' ? 'Minutes completed' :
-     g.measure_type === 'frequency' ? 'Number of occurrences' :
-     g.measure_type === 'prompt' ? 'Prompt / support level' :
-     g.measure_type === 'yesno' ? 'Completed?' :
-     'Count completed'}
-  </label>
-{g.measure_type === 'prompt' ? (
-   <select value={f.value} onChange={set('value')} style={{ marginBottom: 0 }}>
-    <option value="">Select level...</option>
-    <option value="Independent">Independent</option>
-    <option value="Verbal">Verbal prompt</option>
-    <option value="Gestural">Gestural prompt</option>
-    <option value="Physical">Physical prompt</option>
-  </select>
-) : g.measure_type === 'yesno' ? (
-  <select value={f.value} onChange={set('value')} style={{ marginBottom: 0 }}>
-    <option value="">Select...</option>
-    <option value="Yes">Yes</option>
-    <option value="No">No</option>
-  </select>
-) : (
-  <input
-    type="number"
-    value={f.value}
-    onChange={set('value')}
-    style={{ marginBottom: 0 }}
-  />
-)}
-</div>
-{g.measure_type === 'trials' && (
-  <div>
-    <label>Total trials</label>
-    <input
-      type="number"
-      min="1"
-      value={f.trialTotal}
-      onChange={set('trialTotal')}
-      style={{ marginBottom: 0 }}
-    />
-  </div>
-)}
-          <div><label>Date</label><input type="date" value={f.date} onChange={set('date')} style={{ marginBottom: 0 }} /></div>
-        </div>
-        <div className="row" style={{ marginTop: 8 }}>
-          <div><label>Support level</label><select value={f.p} onChange={set('p')} style={{ marginBottom: 0 }}><Opts a={PL} /></select></div>
-          <div><label>Where</label><select value={f.w} onChange={set('w')} style={{ marginBottom: 0 }}><Opts a={WH} /></select></div>
+      <div style={{ marginTop: 14 }}>
+        {g.measure_type === 'trials' ? (
+          <section className="trial-panel" aria-label="Trial recording">
+            <div className="trial-heading">
+              <div>
+                <h3>Trial recording</h3>
+                <p>Choose how you want to enter today's opportunities.</p>
+              </div>
+              <span className="trial-badge">Trials</span>
+            </div>
+
+            <div className="trial-mode-switch" role="group" aria-label="Trial entry method">
+              <button
+                type="button"
+                className={trialMode === 'live' ? 'active' : ''}
+                aria-pressed={trialMode === 'live'}
+                onClick={() => { setTrialMode('live'); setLogError('') }}
+              >
+                Live X/O
+              </button>
+              <button
+                type="button"
+                className={trialMode === 'manual' ? 'active' : ''}
+                aria-pressed={trialMode === 'manual'}
+                onClick={() => { setTrialMode('manual'); setLogError('') }}
+              >
+                Manual entry
+              </button>
+            </div>
+
+            {trialMode === 'live' ? (
+              <div className="trial-live">
+                <div className="trial-actions">
+                  <button type="button" className="trial-action correct" onClick={() => {
+                    setTrialResponses(prev => [...prev, 'X'])
+                    setLogError('')
+                  }}>
+                    <span aria-hidden="true">X</span>
+                    Correct
+                  </button>
+                  <button type="button" className="trial-action incorrect" onClick={() => {
+                    setTrialResponses(prev => [...prev, 'O'])
+                    setLogError('')
+                  }}>
+                    <span aria-hidden="true">O</span>
+                    Incorrect
+                  </button>
+                </div>
+                <div className="trial-history">
+                  <div className="trial-history-title">
+                    <span>Recorded responses</span>
+                    <span>{trialCount} total</span>
+                  </div>
+                  {trialCount > 0 ? (
+                    <div className="trial-chips" aria-label="Recorded trial responses">
+                      {trialResponses.map((response, index) => (
+                        <span
+                          key={index}
+                          className={response === 'X' ? 'trial-chip correct' : 'trial-chip incorrect'}
+                          aria-label={'Trial ' + (index + 1) + ': ' + (response === 'X' ? 'correct' : 'incorrect')}
+                          title={'Trial ' + (index + 1)}
+                        >{response}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="trial-empty">Tap Correct or Incorrect to record a response.</p>
+                  )}
+                </div>
+                <div className="trial-edit-actions">
+                  <button type="button" disabled={!trialCount} onClick={() => {
+                    setTrialResponses(prev => prev.slice(0, -1))
+                    setLogError('')
+                  }}>Undo last</button>
+                  <button type="button" disabled={!trialCount} onClick={() => {
+                    setTrialResponses([])
+                    setLogError('')
+                  }}>Clear trials</button>
+                </div>
+              </div>
+            ) : (
+              <div className="trial-manual">
+                <div>
+                  <label htmlFor={'trial-success-' + g.id}>Successful trials</label>
+                  <input id={'trial-success-' + g.id} type="number" min="0" step="1" inputMode="numeric"
+                    value={f.value} onChange={set('value')} placeholder="e.g. 4" />
+                </div>
+                <div>
+                  <label htmlFor={'trial-total-' + g.id}>Total trials</label>
+                  <input id={'trial-total-' + g.id} type="number" min="1" step="1" inputMode="numeric"
+                    value={f.trialTotal} onChange={set('trialTotal')} placeholder="e.g. 5" />
+                </div>
+              </div>
+            )}
+
+            <div className="trial-stats" aria-live="polite">
+              <div><span>Correct</span><strong>{validTrialStats ? shownCorrect : '—'}</strong></div>
+              <div><span>Total</span><strong>{validTrialStats ? shownTotal : '—'}</strong></div>
+              <div><span>Accuracy</span><strong>{validTrialStats ? Math.round(shownCorrect / shownTotal * 100) + '%' : '—'}</strong></div>
+            </div>
+            <div className="trial-progress" role="progressbar" aria-label="Trial accuracy"
+              aria-valuemin={0} aria-valuemax={100} aria-valuenow={validTrialStats ? Math.round(shownCorrect / shownTotal * 100) : 0}>
+              <div style={{ width: (validTrialStats ? Math.round(shownCorrect / shownTotal * 100) : 0) + '%' }} />
+            </div>
+            <p className="trial-helper">Only the correct and total counts are saved to the goal log, not the X/O sequence.</p>
+          </section>
+        ) : (
+          <div className="trial-other-value">
+            <label>
+              {g.measure_type === 'percentage' ? 'Accuracy %' :
+               g.measure_type === 'duration' ? 'Minutes completed' :
+               g.measure_type === 'frequency' ? 'Number of occurrences' :
+               g.measure_type === 'prompt' ? 'Prompt / support level' :
+               g.measure_type === 'yesno' ? 'Completed?' : 'Count completed'}
+            </label>
+            {g.measure_type === 'prompt' ? (
+              <select value={f.value} onChange={set('value')}>
+                <option value="">Select level...</option>
+                <option value="Independent">Independent</option>
+                <option value="Verbal">Verbal prompt</option>
+                <option value="Gestural">Gestural prompt</option>
+                <option value="Physical">Physical prompt</option>
+              </select>
+            ) : g.measure_type === 'yesno' ? (
+              <select value={f.value} onChange={set('value')}>
+                <option value="">Select...</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            ) : (
+              <input type="number" value={f.value} onChange={set('value')} />
+            )}
+          </div>
+        )}
+        <div className="trial-context-fields">
+          <div><label>Date</label><input type="date" value={f.date} onChange={set('date')} /></div>
+          <div><label>Support level</label><select value={f.p} onChange={set('p')}><Opts a={PL} /></select></div>
+          <div><label>Where</label><select value={f.w} onChange={set('w')}><Opts a={WH} /></select></div>
         </div>
         <input placeholder="Note: what helped?" value={f.n} onChange={set('n')} style={{ marginTop: 8 }} />
-        <button className="btn" onClick={async () => {
-          if (f.value === '') return
-          await onLog({ goal_id: g.id, value: +f.value, trial_total: g.measure_type === 'trials' && f.trialTotal ? Number(f.trialTotal) : null, logged_on: f.date || today(), prompt_level: f.p, setting: f.w, note: f.n.trim() })
-          setF({ ...f, value: '', trialTotal: '', n: '' })
-        }}>Log</button>
+        {logError && <p className="err" role="alert">{logError}</p>}
+        <button className="btn" type="button" disabled={savingLog} onClick={async () => {
+          if (savingLog) return
+          const isTrials = g.measure_type === 'trials'
+          const live = isTrials && trialMode === 'live'
+          const value = live ? String(correctTrials) : f.value
+          const trialTotal = live ? String(trialCount) : f.trialTotal
+
+          if (value === '' || (live && trialCount === 0)) {
+            setLogError('Record a response or enter a result before logging.')
+            return
+          }
+
+          if (isTrials) {
+            const successes = Number(value)
+            const attempts = Number(trialTotal)
+            if (!Number.isInteger(successes) || !Number.isInteger(attempts) ||
+                attempts < 1 || successes < 0 || successes > attempts) {
+              setLogError('Enter whole numbers with 0 ≤ correct ≤ total and at least one trial.')
+              return
+            }
+          }
+
+          setLogError('')
+          setSavingLog(true)
+          try {
+            const saved = await onLog({
+              goal_id: g.id,
+              value: Number(value),
+              trial_total: isTrials ? Number(trialTotal) : null,
+              logged_on: f.date,
+              prompt_level: f.p,
+              setting: f.w,
+              note: f.n
+            })
+            if (saved !== true) {
+              setLogError('The log was not saved. Your entries have been kept.')
+              return
+            }
+            setF(prev => ({ ...prev, value: '', trialTotal: '', n: '' }))
+            setTrialResponses([])
+          } catch (error) {
+            console.error('Failed to save goal log:', error)
+            setLogError('The log could not be saved. Your entries have been kept.')
+          } finally {
+            setSavingLog(false)
+          }
+        }}>{savingLog ? 'Saving…' : 'Log'}</button>
       </div>
       {visibleLogs.map(x => (
         <div className="sm" key={x.id}>
@@ -2810,13 +2943,23 @@ if (inviteMode) {
                 onEdit={(id, patch) =>
                   run(supabase.from('goals').update(patch).eq('id', id))
                 }
-                onLog={row =>
-                  run(
-                    supabase.from('logs').insert({
-                      ...row,
-                      child_id: cid
-                    })
-                  )
+                onLog={async row => {
+                  const { error } = await supabase.from('logs').insert({
+                    ...row,
+                    child_id: cid
+                  })
+                  if (error) {
+                    setErr(error.message)
+                    throw error
+                  }
+                  setErr('')
+                  try {
+                    await load()
+                  } catch (refreshError) {
+                    console.error('Log saved but refresh failed:', refreshError)
+                    setErr('Log saved, but the list could not refresh. Reload to see the entry.')
+                  }
+                  return true
                 }
                 onDelLog={id =>
                   run(supabase.from('logs').delete().eq('id', id))
