@@ -3,7 +3,23 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
 const AREAS = ['Fine motor', 'Gross motor', 'Speech', 'Self-care', 'Social', 'Behavior']
-const PL = ['Independent', 'Gesture', 'Verbal', 'Physical']
+const PL = ['Independent', 'Gesture', 'Verbal', 'Physical', 'Visual', 'Redirection']
+const decodeSupports = value => String(value || '').split(',').map(x => x.trim()).filter(Boolean)
+const trialDays = (g, logs) => {
+  const byDate = new Map()
+  for (const log of logs) {
+    if (!log.logged_on || !Number.isInteger(Number(log.trial_total)) || Number(log.trial_total) < 1) continue
+    byDate.set(log.logged_on, [...(byDate.get(log.logged_on) || []), log])
+  }
+  return [...byDate.entries()].map(([date, rows]) => {
+    const total = rows.reduce((sum, x) => sum + Number(x.trial_total || 0), 0)
+    const correct = rows.reduce((sum, x) => sum + Number(x.value || 0), 0)
+    const required = Number(g.total_trials || 0)
+    const qualifies = required > 0 && total >= required &&
+      (g.direction === 'down' ? correct / total <= Number(g.target) / required : correct / total >= Number(g.target) / required)
+    return { date, qualifies }
+  })
+}
 const WH = ['Home', 'School', 'Therapy', 'Respite']
 const loc = d => new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10)
 const today = () => loc(new Date())
@@ -14,12 +30,22 @@ const gv = (g, logs) => logs.filter(l => l.goal_id === g.id)
   .sort((a, b) => a.logged_on.localeCompare(b.logged_on) || a.created_at.localeCompare(b.created_at))
 function status(g, v) {
   if (!v.length) return 'No data'
+  if (g.measure_type === 'trials' && Number(g.total_trials) > 0) {
+    const days = trialDays(g, v)
+    if (days.filter(d => d.qualifies).length >= Math.max(1, Number(g.mastery_count) || 3)) return 'Mastered'
+    return days.at(-1)?.qualifies ? 'At target' : 'In progress'
+  }
   const l = v.slice(-g.mastery_count)
   if (l.length >= g.mastery_count && l.every(x => met(g, x.value))) return 'Mastered'
   return met(g, v[v.length - 1].value) ? 'At target' : 'In progress'
 }
 function pct(g, v) {
   if (!v.length) return 0
+  if (g.measure_type === 'trials' && Number(g.total_trials) > 0) {
+    const last = v[v.length - 1]
+    if (!Number(last.trial_total)) return 0
+    return cl(Number(last.value) / Number(last.trial_total))
+  }
   const l = v[v.length - 1].value
   if (g.direction === 'down') {
     const b = g.baseline ?? Math.max(v[0].value, g.target * 2)
@@ -29,12 +55,14 @@ function pct(g, v) {
   return cl((l - b) / ((g.target - b) || 1))
 }
 function Spark({ g, v }) {
-  const n = v.slice(-14).map(l => l.value)
+  const isTrials = g.measure_type === 'trials' && Number(g.total_trials) > 0
+  const n = v.slice(-14).map(l => isTrials && Number(l.trial_total) > 0 ? (Number(l.value) / Number(l.trial_total)) * 100 : Number(l.value))
   if (n.length < 2) return <div className="sm">Log 2+ entries to see a trend.</div>
-  const mx = Math.max(g.target, ...n) || 1, y = k => 54 - (k / mx) * 48, x = i => 4 + i * (292 / (n.length - 1))
+  const target = isTrials ? (Number(g.target) / Number(g.total_trials)) * 100 : Number(g.target)
+  const mx = Math.max(target, ...n) || 1, y = k => 54 - (k / mx) * 48, x = i => 4 + i * (292 / (n.length - 1))
   return (
     <svg viewBox="0 0 300 60" role="img" aria-label="trend">
-      <line x1="0" x2="300" y1={y(g.target)} y2={y(g.target)} stroke="var(--mu)" strokeDasharray="4 4" />
+      <line x1="0" x2="300" y1={y(target)} y2={y(target)} stroke="var(--mu)" strokeDasharray="4 4" />
       <polyline fill="none" stroke="var(--ac)" strokeWidth="2.5" points={n.map((k, i) => `${x(i)},${y(k)}`).join(' ')} />
     </svg>
   )
@@ -60,6 +88,10 @@ const stoFmt = (mt, v, unit) => {
   if (mt === 'independence') return SUPPORT_LEVELS[v] ?? String(v)
   if (mt === 'percentage') return v + '%'
   return v + (unit ? ' ' + unit : '')
+}
+const writtenTrialRatio = title => {
+  const match = String(title || '').match(/\b(\d+)\s*(?:\/|out of)\s*(\d+)\b/i)
+  return match ? { correct: Number(match[1]), total: Number(match[2]) } : null
 }
 const blankSto = { title: '', mt: 'count', baseline: '', target: '', baselineTotalTrials: '', targetTotalTrials: '', unit: 'times', date: '', status: 'not_started', supports: '' }
 const stoToForm = o => ({
@@ -93,9 +125,18 @@ function StoForm({ init, submitLabel, onSave, onCancel }) {
     const num = v => (v === '' ? null : Number(v))
     if (!f.title.trim()) return setMsg('Add a title.')
     if (f.target === '') return setMsg('Add a target.')
+    if (f.mt === 'trials') {
+      const correct = Number(f.target), total = Number(f.targetTotalTrials)
+      if (!Number.isInteger(correct) || !Number.isInteger(total) || total < 1 || correct < 0 || correct > total) return setMsg('Enter valid whole-number target successful trials and total opportunities.')
+      if ((f.baseline === '') !== (f.baselineTotalTrials === '')) return setMsg('Enter both baseline values or leave both blank.')
+      if (f.baseline !== '' && (!Number.isInteger(+f.baseline) || !Number.isInteger(+f.baselineTotalTrials) || +f.baseline < 0 || +f.baselineTotalTrials < 1 || +f.baseline > +f.baselineTotalTrials)) return setMsg('Baseline trials must be whole numbers with successes no greater than opportunities.')
+      const written = writtenTrialRatio(f.title)
+      if (written && (written.correct !== correct || written.total !== total)) return setMsg('The written objective says ' + written.correct + '/' + written.total + ', but the structured target says ' + correct + '/' + total + '. Update one so they match.')
+    }
     if (f.mt === 'percentage' && [f.baseline, f.target].some(v => v !== '' && (+v < 0 || +v > 100))) return setMsg('Percentages must be between 0 and 100.')
     setMsg(''); setBusy(true)
-    await onSave({
+    try {
+    const saved = await onSave({
   title: f.title.trim(),
   measurement_type: f.mt,
   baseline: num(f.baseline),
@@ -109,12 +150,16 @@ function StoForm({ init, submitLabel, onSave, onCancel }) {
   status: f.status,
   supports: f.supports
 })
-    setBusy(false)
+    if (saved === false) setMsg('Objective could not be saved; check the error shown above.')
+    } catch (error) {
+      setMsg('Objective could not be saved. Your entries have been kept.')
+    } finally { setBusy(false) }
   }
   return (
     <div style={{ border: '1px solid var(--bd)', borderRadius: 8, padding: 10, marginTop: 8 }}>
       <label>Objective title</label>
-      <input value={f.title} onChange={set('title')} placeholder="Stacks 4 blocks with a verbal prompt" />
+      <input value={f.title} onChange={set('title')} placeholder="e.g. Completes 3/5 opportunities with verbal support" />
+       {f.mt === 'trials' && writtenTrialRatio(f.title) && <p className="trial-helper">Written objective: {writtenTrialRatio(f.title).correct}/{writtenTrialRatio(f.title).total}. Structured target must match.</p>}
       <div className="row">
         <div><label>Measurement type</label><select value={f.mt} onChange={changeType}>{types.map(t => <option key={t} value={t}>{MT[t] ? MT[t].label : t}</option>)}</select></div>
         <div><label>Target date</label><input type="date" value={f.date} onChange={set('date')} /></div>
@@ -213,7 +258,7 @@ const visibleStos = showAllStos
       <div className="sm"><b>Short-term objectives</b></div>
       {visibleStos.map(o => editId === o.id ? (
         <StoForm key={o.id} init={stoToForm(o)} submitLabel="Save changes" onCancel={() => setEditId(null)}
-          onSave={async row => { if (await onEdit(o.id, row)) setEditId(null) }} />
+          onSave={async row => { const saved = await onEdit(o.id, row); if (saved) setEditId(null); return saved }} />
       ) : (
         <div key={o.id} style={{ border: '1px solid var(--bd)', borderRadius: 8, padding: 10, marginTop: 8 }}>
           <b
@@ -269,7 +314,7 @@ const visibleStos = showAllStos
   </button>
 )}
       {canEdit && (adding
-        ? <StoForm init={blankSto} submitLabel="Add objective" onCancel={() => setAdding(false)} onSave={async row => { if (await onAdd(row)) setAdding(false) }} />
+        ? <StoForm init={blankSto} submitLabel="Add objective" onCancel={() => setAdding(false)} onSave={async row => { const saved = await onAdd(row); if (saved) setAdding(false); return saved }} />
         : <div style={{ marginTop: 8 }}><button className="btn g" onClick={() => setAdding(true)}>Add objective</button></div>)}
     </div>
   )
@@ -277,8 +322,8 @@ const visibleStos = showAllStos
 
 function GoalCard({ g, logs, stos = [], names, uid, parent, canEdit, onEdit, onAddSto, onEditSto, onDelSto, onLog, onDelLog, onDelGoal }) {
   const v = gv(g, logs), r = v.slice(-5), last = v[v.length - 1]
-  const ind = r.filter(x => x.prompt_level === 'Independent').length
-  const [f, setF] = useState({ value: '', trialTotal: '', date: today(), p: 'Independent', w: 'Home', n: '' }), [c, setC] = useState(false), [ed, setEd] = useState(null)
+  const ind = r.filter(x => decodeSupports(x.prompt_level).includes('Independent')).length
+  const [f, setF] = useState({ value: '', trialTotal: '', date: today(), p: ['Independent'], w: 'Home', n: '' }), [c, setC] = useState(false), [ed, setEd] = useState(null)
   const [trialResponses, setTrialResponses] = useState([])
   const [trialMode, setTrialMode] = useState('live')
   const [savingLog, setSavingLog] = useState(false)
@@ -297,6 +342,7 @@ const visibleLogs = showAllLogs
   : v.slice(-3).reverse()
   const se = k => e => setEd({ ...ed, [k]: e.target.value })
   const set = k => e => setF({ ...f, [k]: e.target.value })
+  const toggleSupport = support => setF(prev => ({ ...prev, p: prev.p.includes(support) ? prev.p.filter(x => x !== support) : support === 'Independent' ? ['Independent'] : [...prev.p.filter(x => x !== 'Independent'), support] }))
   return (
     <div className="card">
      <div
@@ -354,6 +400,7 @@ const visibleLogs = showAllLogs
   </div>
 )}
       {g.supports && <div className="sm"><b>Supports that help:</b> {g.supports}</div>}
+       {g.measure_type === 'trials' && Number(g.total_trials) > 0 && <div className="trial-criteria-summary"><strong>Mastery:</strong> {g.target}/{g.total_trials} opportunities on {g.mastery_count || 3} distinct qualifying days (not necessarily consecutive). <span>{trialDays(g, v).filter(d => d.qualifies).length} qualifying day(s) recorded.</span></div>}
       <StoSection stos={stos} canEdit={canEdit} onAdd={onAddSto} onEdit={onEditSto} onDel={onDelSto} />
       {r.length > 0 && <div className="sm">Independent in {ind} of last {r.length} entries</div>}
       <div style={{ marginTop: 14 }}>
@@ -491,7 +538,7 @@ const visibleLogs = showAllLogs
         )}
         <div className="trial-context-fields">
           <div><label>Date</label><input type="date" value={f.date} onChange={set('date')} /></div>
-          <div><label>Support level</label><select value={f.p} onChange={set('p')}><Opts a={PL} /></select></div>
+          <div className="support-selection"><label>Supports used (choose all that apply)</label><div className="support-options">{PL.map(s => <label key={s} className="support-option"><input type="checkbox" checked={f.p.includes(s)} onChange={() => toggleSupport(s)} />{s}</label>)}</div></div>
           <div><label>Where</label><select value={f.w} onChange={set('w')}><Opts a={WH} /></select></div>
         </div>
         <input placeholder="Note: what helped?" value={f.n} onChange={set('n')} style={{ marginTop: 8 }} />
@@ -503,6 +550,7 @@ const visibleLogs = showAllLogs
           const value = live ? String(correctTrials) : f.value
           const trialTotal = live ? String(trialCount) : f.trialTotal
 
+          if (f.p.length === 0) { setLogError('Choose at least one support, or Independent.'); return }
           if (value === '' || (live && trialCount === 0)) {
             setLogError('Record a response or enter a result before logging.')
             return
@@ -526,7 +574,7 @@ const visibleLogs = showAllLogs
               value: Number(value),
               trial_total: isTrials ? Number(trialTotal) : null,
               logged_on: f.date,
-              prompt_level: f.p,
+              prompt_level: f.p.join(', '),
               setting: f.w,
               note: f.n
             })
@@ -578,7 +626,7 @@ const visibleLogs = showAllLogs
   </button>
 )}
       {canEdit && !ed && <div style={{ marginTop: 8 }}>
-        <button className="btn g" onClick={() => setEd({ title: g.title, target: g.target, baseline: g.baseline ?? '', unit: g.unit, mastery: g.mastery_count, supports: g.supports })}>Edit goal</button>
+        <button className="btn g" onClick={() => setEd({ title: g.title, target: g.target, baseline: g.baseline ?? '', unit: g.unit, mastery: g.mastery_count, totalTrials: g.total_trials ?? '', baselineTotalTrials: g.baseline_total_trials ?? '', supports: g.supports })}>Edit goal</button>
       </div>}
       {ed && <div style={{ marginTop: 8 }}>
         <label>Goal</label><input value={ed.title} onChange={se('title')} />
@@ -588,12 +636,14 @@ const visibleLogs = showAllLogs
         </div>
         <div className="row">
           <div><label>Measured in</label><input value={ed.unit} onChange={se('unit')} /></div>
-          <div><label>Mastered after N in a row</label><input type="number" min="1" value={ed.mastery} onChange={se('mastery')} /></div>
+          <div><label>{g.measure_type === 'trials' ? 'Qualifying separate days (not consecutive)' : 'Mastered after N in a row'}</label><input type="number" min="1" value={ed.mastery} onChange={se('mastery')} /></div>
         </div>
+        {g.measure_type === 'trials' && <div className="goal-field-grid"><div><label>Total target opportunities</label><input type="number" min="1" value={ed.totalTrials} onChange={se('totalTrials')} /></div><div><label>Baseline total opportunities</label><input type="number" min="1" value={ed.baselineTotalTrials} onChange={se('baselineTotalTrials')} /></div></div>}
         <label>Supports that help</label><input value={ed.supports} onChange={se('supports')} />
         <button className="btn" onClick={async () => {
           if (!ed.title.trim() || ed.target === '') return
-          await onEdit(g.id, { title: ed.title.trim(), target: +ed.target, baseline: ed.baseline === '' ? null : +ed.baseline, unit: ed.unit.trim() || 'reps', mastery_count: Math.max(1, +ed.mastery || 3), supports: ed.supports.trim() })
+          if (g.measure_type === 'trials' && (!Number.isInteger(+ed.target) || +ed.target < 0 || !Number.isInteger(+ed.totalTrials) || +ed.totalTrials < 1 || +ed.target > +ed.totalTrials || !Number.isInteger(+ed.mastery) || +ed.mastery < 1)) { setLogError('Enter valid target trials, total opportunities and qualifying days.'); return }
+          await onEdit(g.id, { title: ed.title.trim(), target: +ed.target, baseline: ed.baseline === '' ? null : +ed.baseline, unit: ed.unit.trim() || 'reps', mastery_count: Math.max(1, +ed.mastery || 3), supports: ed.supports.trim(), ...(g.measure_type === 'trials' ? { total_trials: +ed.totalTrials, baseline_total_trials: ed.baselineTotalTrials === '' ? null : +ed.baselineTotalTrials } : {}) })
           setEd(null)
         }}>Save changes</button>{' '}
         <button className="btn g" onClick={() => setEd(null)}>Cancel</button>
@@ -607,6 +657,8 @@ const visibleLogs = showAllLogs
 
 function AddGoal({ onAdd }) {
   const [f, setF] = useState({ title: '', area: AREAS[0], direction: 'up', target: '', totalTrials: '', baseline: '', baselineTotalTrials: '', unit: '', mastery: 3, supports: '', measureType: 'count' })
+  const [goalError, setGoalError] = useState('')
+  const [savingGoal, setSavingGoal] = useState(false)
   const [scanPreview, setScanPreview] = useState('')
   const [scanFile, setScanFile] = useState(null)
   const [scanLoading, setScanLoading] = useState(false)
@@ -732,7 +784,7 @@ setScanPreview(previewUrl)
       ]
     })
   }}
-  style={{ marginTop: 10, marginLeft: 8 }}
+  style={{ display: 'block', marginTop: 10, marginBottom: 16, maxWidth: '100%' }}
 >
   Preview Review Screen
 </button>
@@ -1073,116 +1125,73 @@ setScanPreview(previewUrl)
   </select>
 </div>
 
-      <div className="row">
-        <div>
-  <label>
-    {f.measureType === 'percentage' ? 'Target percentage' :
-     f.measureType === 'trials' ? 'Successful trials' :
-     f.measureType === 'duration' ? 'Target duration' :
-     f.measureType === 'frequency' ? 'Target frequency' :
-     f.measureType === 'prompt' ? 'Target prompt level' :
-     f.measureType === 'yesno' ? 'Target completion' :
-     'Target count'}
-  </label>
-
-  {f.measureType === 'prompt' ? (
-  <select value={f.target} onChange={set('target')}>
-    <option value="">Select support level...</option>
-    <option value="Physical">Physical</option>
-    <option value="Verbal">Verbal</option>
-    <option value="Gesture">Gesture</option>
-    <option value="Independent">Independent</option>
-  </select>
-) : (
-  <input
-    type="number"
-    value={f.target}
-    onChange={set('target')}
-  />
-)}
-</div>
-{f.measureType === 'trials' && (
-  <div>
-    <label>Total trials / opportunities</label>
-    <input
-      type="number"
-      min="1"
-      value={f.totalTrials}
-      onChange={set('totalTrials')}
-    />
-  </div>
-)}
-       <div>
-  <label>
-    {f.measureType === 'percentage' ? 'Baseline percentage (optional)' :
-     f.measureType === 'trials' ? 'Baseline successful trials (optional)' :
-     f.measureType === 'duration' ? 'Baseline duration (optional)' :
-     f.measureType === 'frequency' ? 'Baseline frequency (optional)' :
-     f.measureType === 'prompt' ? 'Baseline prompt level (optional)' :
-     f.measureType === 'yesno' ? 'Baseline completion (optional)' :
-     'Baseline count (optional)'}
-  </label>
-
-  {f.measureType === 'prompt' ? (
-  <select value={f.baseline} onChange={set('baseline')}>
-    <option value="">Select support level...</option>
-    <option value="Physical">Physical</option>
-    <option value="Verbal">Verbal</option>
-    <option value="Gesture">Gesture</option>
-    <option value="Independent">Independent</option>
-  </select>
-) : (
-  <input
-    type="number"
-    value={f.baseline}
-    onChange={set('baseline')}
-  />
-)}
-</div>
-{f.measureType === 'trials' && (
-  <div>
-    <label>Baseline total trials / opportunities</label>
-    <input
-      type="number"
-      min="1"
-      value={f.baselineTotalTrials}
-      onChange={set('baselineTotalTrials')}
-    />
-  </div>
-)}
-</div>
-      {f.measureType !== 'prompt' && (
-  <div className="row">
-    <div>
-      <label>Measured in</label>
-      <input
-        value={f.unit}
-        onChange={set('unit')}
-        placeholder="blocks, minutes, incidents"
-      />
-    </div>
-  </div>
-)}
+      {f.measureType === 'trials' ? (
+        <section className="goal-trial-setup" aria-label="Trial goal criteria">
+          <h3>Target performance</h3>
+          <div className="goal-field-grid">
+            <div><label>Successful trials</label><input type="number" inputMode="numeric" min="0" step="1" value={f.target} onChange={set('target')} placeholder="e.g. 3" /></div>
+            <div><label>Total opportunities</label><input type="number" inputMode="numeric" min="1" step="1" value={f.totalTrials} onChange={set('totalTrials')} placeholder="e.g. 5" /></div>
+          </div>
+          {f.target !== '' && +f.totalTrials > 0 && Number.isInteger(+f.target) && +f.target >= 0 && +f.target <= +f.totalTrials &&
+            <p className="trial-helper">Target: {f.target} of {f.totalTrials} opportunities ({Math.round(+f.target / +f.totalTrials * 100)}% accuracy)</p>}
+          <div className="goal-field-grid">
+            <div><label>Qualifying trial days</label><input type="number" inputMode="numeric" min="1" step="1" value={f.mastery} onChange={set('mastery')} /></div>
+            <p className="trial-helper">Count separate calendar dates that meet the target. Days do not have to be consecutive.</p>
+          </div>
+          <h3>Starting baseline <span className="sm">(optional)</span></h3>
+          <div className="goal-field-grid">
+            <div><label>Successful trials</label><input type="number" inputMode="numeric" min="0" step="1" value={f.baseline} onChange={set('baseline')} placeholder="e.g. 1" /></div>
+            <div><label>Total opportunities</label><input type="number" inputMode="numeric" min="1" step="1" value={f.baselineTotalTrials} onChange={set('baselineTotalTrials')} placeholder="e.g. 5" /></div>
+          </div>
+        </section>
+      ) : (
+        <div className="goal-field-grid">
+          <div>
+            <label>{f.measureType === 'percentage' ? 'Target percentage' : f.measureType === 'duration' ? 'Target duration' : f.measureType === 'frequency' ? 'Target frequency' : f.measureType === 'prompt' ? 'Target prompt level' : f.measureType === 'yesno' ? 'Target completion' : 'Target count'}</label>
+            {f.measureType === 'prompt' ?
+              <select value={f.target} onChange={set('target')}><option value="">Select level...</option>{PL.slice(0, 4).map(p => <option key={p}>{p}</option>)}</select> :
+              <input type="number" value={f.target} onChange={set('target')} />}
+          </div>
+          <div>
+            <label>Baseline (optional)</label>
+            {f.measureType === 'prompt' ?
+              <select value={f.baseline} onChange={set('baseline')}><option value="">Select level...</option>{PL.slice(0, 4).map(p => <option key={p}>{p}</option>)}</select> :
+              <input type="number" value={f.baseline} onChange={set('baseline')} />}
+          </div>
+          {f.measureType !== 'prompt' && <div><label>Measured in</label><input value={f.unit} onChange={set('unit')} placeholder="blocks, minutes, incidents" /></div>}
+        </div>
+      )}
       <label>Supports that help (shared with school and therapists)</label>
       <input value={f.supports} onChange={set('supports')} placeholder="Visual schedule, hand-over-hand at first" />
-      <button className="btn" onClick={async () => {
-        if (!f.title.trim() || !f.target) return
-        await onAdd({
-  title: f.title.trim(),
-  area: f.area,
-  direction: f.direction,
-  target: +f.target,
-  baseline: f.baseline ? +f.baseline : null,
-  baseline_total_trials: f.measureType === 'trials' && f.baselineTotalTrials ? Number(f.baselineTotalTrials) : null,
-  unit: f.unit,
-  
-  supports: f.supports,
-  measure_type: f.measureType,
-  total_trials: f.measureType === 'trials' && f.totalTrials ? Number(f.totalTrials) : null
-})
-
-setF({ ...f, title: '', target: '', baseline: '', baslineTotalTrials: '', supports: '', totalTrials: '', measureType: 'count' })
-      }}>Add goal</button>
+      {goalError && <p className="err" role="alert">{goalError}</p>}
+      <button className="btn" disabled={savingGoal} onClick={async () => {
+        if (savingGoal) return
+        if (!f.title.trim() || f.target === '') return setGoalError('Enter a goal description and target.')
+        if (f.measureType === 'trials') {
+          const target = Number(f.target), total = Number(f.totalTrials), days = Number(f.mastery)
+          if (!Number.isInteger(target) || !Number.isInteger(total) || total < 1 || target < 0 || target > total) return setGoalError('Target must be whole numbers with successful trials no greater than total opportunities.')
+          if (!Number.isInteger(days) || days < 1) return setGoalError('Qualifying trial days must be a whole number of at least 1.')
+          if ((f.baseline === '') !== (f.baselineTotalTrials === '')) return setGoalError('Enter both baseline counts, or leave both blank.')
+          if (f.baseline !== '' && (!Number.isInteger(+f.baseline) || !Number.isInteger(+f.baselineTotalTrials) || +f.baseline < 0 || +f.baselineTotalTrials < 1 || +f.baseline > +f.baselineTotalTrials)) return setGoalError('Baseline must be valid whole-number trials and opportunities.')
+        }
+        setGoalError('')
+        setSavingGoal(true)
+        try {
+          const saved = await onAdd({
+            title: f.title.trim(), area: f.area, direction: f.direction,
+            target: +f.target, baseline: f.baseline === '' ? null : +f.baseline,
+            baseline_total_trials: f.measureType === 'trials' && f.baselineTotalTrials ? Number(f.baselineTotalTrials) : null,
+            unit: f.measureType === 'trials' ? 'trials' : f.unit.trim(),
+            supports: f.supports.trim(), measure_type: f.measureType,
+            total_trials: f.measureType === 'trials' ? Number(f.totalTrials) : null,
+            mastery_count: f.measureType === 'trials' ? Number(f.mastery) : 3
+          })
+          if (saved !== true) { setGoalError('Goal could not be saved. Check the error above.'); return }
+          setF(prev => ({ ...prev, title: '', target: '', baseline: '', baselineTotalTrials: '', supports: '', totalTrials: '', mastery: 3, measureType: 'count' }))
+        } catch (error) {
+          setGoalError('Goal could not be saved. Your entries are still here.')
+        } finally { setSavingGoal(false) }
+      }}>{savingGoal ? "Saving…" : "Add goal"}</button>
     </div>
   )
 }
@@ -2992,14 +3001,13 @@ if (inviteMode) {
 )}
             {canGoals ? (
               <AddGoal
-                onAdd={row =>
-                  run(
-                    supabase.from('goals').insert({
-                      ...row,
-                      child_id: cid
-                    })
-                  )
-                }
+                onAdd={async row => {
+                  const { error } = await supabase.from('goals').insert({ ...row, child_id: cid })
+                  if (error) { setErr(error.message); return false }
+                  setErr('')
+                  await load()
+                  return true
+                }}
               />
             ) : (
               <p className="sm">
