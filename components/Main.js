@@ -550,6 +550,7 @@ const visibleLogs = showAllLogs
           const value = live ? String(correctTrials) : f.value
           const trialTotal = live ? String(trialCount) : f.trialTotal
 
+          if (f.p.length === 0) { setLogError('Choose at least one support, or Independent.'); return }
           if (value === '' || (live && trialCount === 0)) {
             setLogError('Record a response or enter a result before logging.')
             return
@@ -573,7 +574,7 @@ const visibleLogs = showAllLogs
               value: Number(value),
               trial_total: isTrials ? Number(trialTotal) : null,
               logged_on: f.date,
-              prompt_level: f.p.length ? f.p.join(', ') : 'None',
+              prompt_level: f.p.join(', '),
               setting: f.w,
               note: f.n
             })
