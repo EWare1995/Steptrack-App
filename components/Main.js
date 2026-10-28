@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import TeamDashboard from './TeamDashboard'
 
 const AREAS = ['Fine motor', 'Gross motor', 'Speech', 'Self-care', 'Social', 'Behavior']
 const PL = ['Independent', 'Gesture', 'Verbal', 'Physical', 'Visual', 'Redirection']
@@ -2829,7 +2830,7 @@ function BetaFeedback({ uid, cid, screen }) {
     </div>
   )
 }
-export default function Main({ session }) {
+export default function Main({ session, initialChildId = null }) {
   const uid = session.user.id
   const [isAdmin, setIsAdmin] = useState(false)
 
@@ -2857,8 +2858,8 @@ useEffect(() => {
 
   const loadKids = useCallback(async () => {
     const k = chk(await supabase.from('children').select('*').order('created_at'))
-    setKids(k); setCid(c => (k.find(x => x.id === c) ? c : k[0]?.id || null))
-  }, [])
+    setKids(k); setCid(c => (k.find(x => x.id === c) ? c : k.find(x => x.id === initialChildId)?.id || k[0]?.id || null))
+  }, [initialChildId])
   useEffect(() => { loadKids() }, [loadKids])
 
   const load = useCallback(async () => {
@@ -3180,7 +3181,7 @@ if (inviteMode) {
         )}
 
         {tab === 'team' && (
-          <Team
+          <TeamDashboard
             team={d.team}
             names={d.names}
             uid={uid}
