@@ -799,3 +799,64 @@ table {
 @media (max-width: 600px) {
   .report-behavior-counts { padding: 11px; }
 }
+
+
+/* Team invitation and passwordless onboarding preview */
+.step-auth-brand { text-align: center; margin: 0 auto 24px; }
+.step-auth-brand img { width: 116px; height: 116px; object-fit: contain; border-radius: 20px; }
+.step-auth-brand h1 { margin: 8px 0 4px; }
+.step-auth-card { max-width: 520px; margin: 0 auto; }
+.step-auth-card > button[type="submit"] { width: 100%; margin-top: 16px; }
+.step-auth-card label { display: block; margin-top: 14px; }
+.step-auth-switch { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.step-auth-switch .btn { flex: 1 1 auto; }
+.step-invite-state { max-width: 520px; margin: 36px auto; text-align: center; }
+.step-invite-state img { object-fit: contain; border-radius: 14px; }
+.step-invite-state .btn { margin: 6px 4px; }
+.team-dashboard { display: grid; gap: 14px; }
+.team-dashboard .card { margin: 0; }
+.team-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; background: linear-gradient(120deg, #ffffff, #edf6ff); }
+.team-header h2 { margin-bottom: 6px; }
+.team-eyebrow { color: #3777af; font-size: 11px; font-weight: 800; letter-spacing: 1.2px; margin: 0 0 8px; }
+.team-count { padding: 10px 16px; border: 1px solid #d3e7fa; background: #fff; border-radius: 14px; display: grid; text-align: center; min-width: 112px; }
+.team-count strong { font-size: 24px; color: #1d5b94; }
+.team-count span { font-size: 11px; color: #60758e; }
+.team-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.team-panel { min-width: 0; }
+.team-panel h3 { margin: 0 0 4px; font-size: 17px; }
+.team-panel-heading { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; margin-bottom: 14px; }
+.team-panel-heading p { margin: 3px 0; }
+.team-status { white-space: nowrap; font-size: 11px; font-weight: 700; border-radius: 30px; color: #1f6d50; background: #e9f9f0; padding: 5px 9px; }
+.team-member-list { display: grid; gap: 10px; }
+.team-member { border: 1px solid #e3ebf5; border-radius: 13px; display: flex; align-items: center; gap: 10px; padding: 12px; min-width: 0; }
+.team-avatar { flex: 0 0 36px; height: 36px; display: grid; place-items: center; border-radius: 11px; background: #e8f2ff; color: #1d64aa; font-weight: 800; }
+.team-member-info { flex: 1 1 130px; min-width: 0; }
+.team-member-name { font-size: 13px; font-weight: 750; color: #253d59; overflow-wrap: anywhere; }
+.team-member-role, .team-member-rights { font-size: 11px; color: #60748a; }
+.team-you { display: inline-block; margin-left: 6px; padding: 2px 6px; border-radius: 8px; color: #2469a8; background: #ecf5ff; font-size: 10px; }
+.team-member-actions { display: grid; gap: 5px; justify-items: end; }
+.team-member-actions button { font-size: 11px; padding: 5px 8px; border: 1px solid #d8e5f4; background: #fff; border-radius: 7px; cursor: pointer; }
+.team-danger-button { color: #a42a30 !important; border: 1px solid #f2c9ce !important; background: #fff4f5 !important; border-radius: 8px; padding: 7px 10px; cursor: pointer; }
+.team-invite-form { display: grid; gap: 6px; }
+.team-invite-form .btn { margin: 12px 0 2px; }
+.team-share { border: 1px solid #d2e8fb; border-radius: 12px; background: #f1f8ff; padding: 12px; margin-top: 14px; display: grid; gap: 8px; }
+.team-share input, .team-recent-invite input { min-width: 0; width: 100%; }
+.team-recent-invite { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #e9f0f8; }
+.team-recent-invite strong { overflow-wrap: anywhere; font-size: 12px; }
+.team-recent-invite button { flex-shrink: 0; }
+.team-empty { color: #62778d; font-size: 12px; padding: 14px; border: 1px dashed #d7e6f5; border-radius: 10px; }
+.team-note { margin: 12px 0 0; }
+.team-advanced { margin-top: 14px; border-top: 1px solid #e3ebf5; padding-top: 12px; }
+.team-advanced summary, .team-danger-zone summary { color: #316a9d; cursor: pointer; font-size: 12px; font-weight: 650; }
+.team-advanced form { display: grid; gap: 8px; margin-top: 12px; }
+.team-danger-zone { border-color: #f5d8d9; }
+.team-danger-zone p { margin: 12px 0; }
+@media (max-width: 620px) {
+  .team-layout { grid-template-columns: 1fr; }
+  .team-header { align-items: flex-start; }
+  .team-member { gap: 8px; padding: 10px; }
+  .team-panel { padding: 15px; }
+  .team-panel-heading { flex-wrap: wrap; }
+  .team-recent-invite { flex-wrap: wrap; }
+  .step-auth-switch .btn { width: 100%; }
+}
