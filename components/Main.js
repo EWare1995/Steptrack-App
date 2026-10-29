@@ -2,6 +2,10 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import TeamDashboard from './TeamDashboard'
+import StoTrialEntryPanel from './StoTrialEntryPanel'
+import { validateStoTrialCriteria } from '../lib/stoTrialProgress'
+
+const STO_STORAGE_ENABLED = process.env.NEXT_PUBLIC_STO_STORAGE_ENABLED === 'true'
 
 const AREAS = ['Fine motor', 'Gross motor', 'Speech', 'Self-care', 'Social', 'Behavior']
 const PL = ['Independent', 'Gesture', 'Verbal', 'Physical', 'Visual', 'Redirection']
@@ -107,7 +111,7 @@ const writtenTrialRatio = title => {
   const match = String(title || '').match(/\b(\d+)\s*(?:\/|out of)\s*(\d+)\b/i)
   return match ? { correct: Number(match[1]), total: Number(match[2]) } : null
 }
-const blankSto = { title: '', mt: 'count', baseline: '', target: '', baselineTotalTrials: '', targetTotalTrials: '', unit: 'times', date: '', status: 'not_started', supports: '' }
+const blankSto = { title: '', mt: 'count', baseline: '', target: '', baselineTotalTrials: '', targetTotalTrials: '', unit: 'times', date: '', status: 'not_started', supports: '', qualifyingDays: '' }
 const blankStoForGoal = goal => {
   const candidate = goal?.measure_type === 'prompt' ? 'independence' : goal?.measure_type
   const mt = MT[candidate] ? candidate : 'count'
@@ -124,7 +128,8 @@ const stoToForm = o => ({
   unit: o.unit ?? '',
   date: o.target_date ? String(o.target_date).slice(0, 10) : '',
   status: o.status ?? 'not_started',
-  supports: o.supports ?? ''
+  supports: o.supports ?? '',
+  qualifyingDays: o.qualifying_days == null ? '' : String(o.qualifying_days)
 })
 
 
@@ -178,6 +183,10 @@ function StoForm({ init, submitLabel, onSave, onCancel }) {
       if (!Number.isInteger(correct) || !Number.isInteger(total) || total < 1 || correct < 0 || correct > total) return setMsg('Enter valid whole-number target successful trials and total opportunities.')
       if ((f.baseline === '') !== (f.baselineTotalTrials === '')) return setMsg('Enter both baseline values or leave both blank.')
       if (f.baseline !== '' && (!Number.isInteger(+f.baseline) || !Number.isInteger(+f.baselineTotalTrials) || +f.baseline < 0 || +f.baselineTotalTrials < 1 || +f.baseline > +f.baselineTotalTrials)) return setMsg('Baseline trials must be whole numbers with successes no greater than opportunities.')
+      if (STO_STORAGE_ENABLED) {
+        const criteriaError = validateStoTrialCriteria({ title: f.title, target: f.target, targetTotalTrials: f.targetTotalTrials, qualifyingDays: f.qualifyingDays })
+        if (criteriaError) return setMsg(criteriaError)
+      }
       const written = writtenTrialRatio(f.title)
       if (written && (written.correct !== correct || written.total !== total)) return setMsg('The written objective says ' + written.correct + '/' + written.total + ', but the structured target says ' + correct + '/' + total + '. Update one so they match.')
     }
@@ -196,7 +205,8 @@ function StoForm({ init, submitLabel, onSave, onCancel }) {
   unit: f.unit,
   target_date: f.date || null,
   status: f.status,
-  supports: f.supports
+  supports: f.supports,
+  ...(STO_STORAGE_ENABLED ? { qualifying_days: f.mt === 'trials' ? Number(f.qualifyingDays) : null } : {})
 })
     if (saved === false) setMsg('Objective could not be saved; check the error shown above.')
     } catch (error) {
@@ -219,6 +229,7 @@ function StoForm({ init, submitLabel, onSave, onCancel }) {
           totalTrials={f.targetTotalTrials}
           baseline={f.baseline}
           baselineTotalTrials={f.baselineTotalTrials}
+          qualifyingDays={STO_STORAGE_ENABLED ? f.qualifyingDays : null}
           onField={key => set(key === 'totalTrials' ? 'targetTotalTrials' : key)}
         />
 ) : (
@@ -239,7 +250,7 @@ function StoForm({ init, submitLabel, onSave, onCancel }) {
   )
 }
 
-function StoSection({ goal, stos, canEdit, onAdd, onEdit, onDel }) {
+function StoSection({ goal, stos, canEdit, onAdd, onEdit, onDel, stoLogs = [], onStoLog }) {
   const [adding, setAdding] = useState(false), [editId, setEditId] = useState(null), [delId, setDelId] = useState(null)
   const [showAllStos, setShowAllStos] = useState(false)
 
@@ -275,6 +286,7 @@ const visibleStos = showAllStos
   }
 </div>
           {o.supports && <div className="sm"><b>Supports:</b> {o.supports}</div>}
+           {STO_STORAGE_ENABLED && o.measurement_type === 'trials' && <StoTrialEntryPanel sto={o} entries={stoLogs.filter(log => log.sto_id === o.id)} onSave={onStoLog} />}
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 6 }}>
             {canEdit ? (
               <select value={o.status ?? ''} onChange={e => onEdit(o.id, { status: e.target.value })} style={sel}>
@@ -315,7 +327,7 @@ const visibleStos = showAllStos
   )
 }
 
-function GoalCard({ g, logs, stos = [], names, uid, parent, canEdit, onEdit, onAddSto, onEditSto, onDelSto, onLog, onDelLog, onDelGoal }) {
+function GoalCard({ g, logs, stos = [], stoLogs = [], onStoLog, names, uid, parent, canEdit, onEdit, onAddSto, onEditSto, onDelSto, onLog, onDelLog, onDelGoal }) {
   const v = gv(g, logs), r = v.slice(-5), last = v[v.length - 1]
   const ind = r.filter(x => decodeSupports(x.prompt_level).includes('Independent')).length
   const [f, setF] = useState({ value: '', trialTotal: '', date: today(), p: ['Independent'], w: 'Home', n: '' }), [c, setC] = useState(false), [ed, setEd] = useState(null)
@@ -396,7 +408,7 @@ const visibleLogs = showAllLogs
 )}
       {g.supports && <div className="sm"><b>Supports that help:</b> {g.supports}</div>}
        {g.measure_type === 'trials' && Number(g.total_trials) > 0 && <div className="trial-criteria-summary"><strong>Mastery:</strong> {g.target}/{g.total_trials} opportunities on {g.mastery_count || 3} distinct qualifying days (not necessarily consecutive). <span>{trialDays(g, v).filter(d => d.qualifies).length} qualifying day(s) recorded.</span></div>}
-      <StoSection goal={g} stos={stos} canEdit={canEdit} onAdd={onAddSto} onEdit={onEditSto} onDel={onDelSto} />
+      <StoSection goal={g} stos={stos} canEdit={canEdit} onAdd={onAddSto} onEdit={onEditSto} onDel={onDelSto} stoLogs={stoLogs} onStoLog={onStoLog} />
       {r.length > 0 && <div className="sm">Independent in {ind} of last {r.length} entries</div>}
       <div style={{ marginTop: 14 }}>
         {g.measure_type === 'trials' ? (
@@ -2821,7 +2833,7 @@ useEffect(() => {
   }
 }, [])
   const [showAllGoals, setShowAllGoals] = useState(false)
-  const [d, setD] = useState({ goals: [], logs: [], stos: [], beh: [], team: [], names: {} }), [nk, setNk] = useState('')
+  const [d, setD] = useState({ goals: [], logs: [], stos: [], stoLogs: [], beh: [], team: [], names: {} }), [nk, setNk] = useState('')
   const chk = r => { if (r.error) { setErr(r.error.message); return [] } return r.data || [] }
 
   const loadKids = useCallback(async () => {
@@ -2831,7 +2843,7 @@ useEffect(() => {
   useEffect(() => { loadKids() }, [loadKids])
 
   const load = useCallback(async () => {
-    if (!cid) { setD({ goals: [], logs: [], stos: [], beh: [], team: [], names: {} }); return }
+    if (!cid) { setD({ goals: [], logs: [], stos: [], stoLogs: [], beh: [], team: [], names: {} }); return }
     const [g, l, b, t, p] = await Promise.all([
       supabase.from('goals').select('*').eq('child_id', cid).eq('archived', false).order('created_at'),
       supabase.from('logs').select('*').eq('child_id', cid),
@@ -2841,7 +2853,8 @@ useEffect(() => {
     const goalRows = chk(g)
     const goalIds = goalRows.map(x => x.id)
     const stoRows = goalIds.length ? chk(await supabase.from('sto_objectives').select('*').in('goal_id', goalIds)) : []
-    setD({ goals: goalRows, logs: chk(l), stos: stoRows.slice().sort(stoSort), beh: chk(b), team: chk(t), names: Object.fromEntries(chk(p).map(x => [x.id, x.display_name])) })
+    const stoLogs = STO_STORAGE_ENABLED ? chk(await supabase.from('sto_trial_entries').select('*').eq('child_id', cid)) : []
+    setD({ goals: goalRows, logs: chk(l), stos: stoRows.slice().sort(stoSort), stoLogs, beh: chk(b), team: chk(t), names: Object.fromEntries(chk(p).map(x => [x.id, x.display_name])) })
   }, [cid])
   useEffect(() => { load() }, [load])
 
@@ -3037,6 +3050,12 @@ if (inviteMode) {
                 g={g}
                 logs={d.logs}
                 stos={d.stos.filter(o => o.goal_id === g.id)}
+                stoLogs={(d.stoLogs || []).filter(o => o.goal_id === g.id)}
+                onStoLog={async row => {
+                  const { error } = await supabase.from('sto_trial_entries').insert({ ...row, child_id: cid, goal_id: g.id, logged_by: uid })
+                  if (error) { setErr(error.message); throw error }
+                  setErr(''); await load(); return true
+                }}
                 names={d.names}
                 uid={uid}
                 parent={parent}
