@@ -2,6 +2,10 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import TeamDashboard from './TeamDashboard'
+import StoTrialEntryPanel from './StoTrialEntryPanel'
+import { validateStoTrialCriteria } from '../lib/stoTrialProgress'
+
+const STO_STORAGE_ENABLED = process.env.NEXT_PUBLIC_STO_STORAGE_ENABLED === 'true'
 
 const AREAS = ['Fine motor', 'Gross motor', 'Speech', 'Self-care', 'Social', 'Behavior']
 const PL = ['Independent', 'Gesture', 'Verbal', 'Physical', 'Visual', 'Redirection']
@@ -93,6 +97,7 @@ const SUPPORT_LEVELS = { 1: 'Physical', 2: 'Verbal', 3: 'Gesture', 4: 'Independe
   independence: { label: 'Prompt / support level', unit: 'support level', fixed: true },
   yesno: { label: 'Yes / No completion', unit: 'completed', fixed: true }
 }
+const GOAL_MEASURE_TYPES = Object.entries(MT).map(([key, config]) => ({ value: key === 'independence' ? 'prompt' : key, label: config.label }))
 const STATUS = { not_started: 'Not started', in_progress: 'In progress', met: 'Met', discontinued: 'Discontinued' }
 const stLabel = x => STATUS[x] ?? String(x)
 const stoSort = (a, b) => (Number(a.sort_order ?? 1e9) - Number(b.sort_order ?? 1e9)) || String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''))
@@ -106,7 +111,13 @@ const writtenTrialRatio = title => {
   const match = String(title || '').match(/\b(\d+)\s*(?:\/|out of)\s*(\d+)\b/i)
   return match ? { correct: Number(match[1]), total: Number(match[2]) } : null
 }
-const blankSto = { title: '', mt: 'count', baseline: '', target: '', baselineTotalTrials: '', targetTotalTrials: '', unit: 'times', date: '', status: 'not_started', supports: '' }
+const blankSto = { title: '', mt: 'count', baseline: '', target: '', baselineTotalTrials: '', targetTotalTrials: '', unit: 'times', date: '', status: 'not_started', supports: '', qualifyingDays: '' }
+const blankStoForGoal = goal => {
+  const candidate = goal?.measure_type === 'prompt' ? 'independence' : goal?.measure_type
+  const mt = MT[candidate] ? candidate : 'count'
+  const config = MT[mt]
+  return { ...blankSto, mt, unit: config.fixed ? config.unit : (goal?.unit || config.unit || config.units?.[0] || '') }
+}
 const stoToForm = o => ({
   title: o.title ?? '',
   mt: o.measurement_type ?? 'count',
@@ -117,8 +128,38 @@ const stoToForm = o => ({
   unit: o.unit ?? '',
   date: o.target_date ? String(o.target_date).slice(0, 10) : '',
   status: o.status ?? 'not_started',
-  supports: o.supports ?? ''
+  supports: o.supports ?? '',
+  qualifyingDays: o.qualifying_days == null ? '' : String(o.qualifying_days)
 })
+
+
+function TrialCriteriaFields({ target, totalTrials, baseline, baselineTotalTrials, qualifyingDays, onField, context = 'goal' }) {
+  const validTarget = target !== '' && Number.isInteger(+target) && Number.isInteger(+totalTrials) &&
+    +totalTrials > 0 && +target >= 0 && +target <= +totalTrials
+  return (
+    <section className="goal-trial-setup" aria-label={context === 'goal' ? 'Trial goal criteria' : 'Trial objective criteria'}>
+      <h3>Target performance</h3>
+      <div className="goal-field-grid">
+        <div><label>Successful trials</label><input type="number" inputMode="numeric" min="0" step="1" value={target} onChange={onField('target')} placeholder="e.g. 3" /></div>
+        <div><label>Total opportunities</label><input type="number" inputMode="numeric" min="1" step="1" value={totalTrials} onChange={onField('totalTrials')} placeholder="e.g. 5" /></div>
+      </div>
+      {validTarget && <p className="trial-helper">Target: {target} of {totalTrials} opportunities ({Math.round(+target / +totalTrials * 100)}% accuracy)</p>}
+      {qualifyingDays != null ? (
+        <div className="goal-field-grid">
+          <div><label>Qualifying trial days</label><input type="number" inputMode="numeric" min="1" step="1" value={qualifyingDays} onChange={onField('mastery')} /></div>
+          <p className="trial-helper">Count separate calendar dates that meet the target. Days do not have to be consecutive.</p>
+        </div>
+      ) : (
+        <p className="trial-helper">STO qualifying days are not independently saved or calculated yet. Any day requirement in the written STO remains descriptive until reviewed backend support is added.</p>
+      )}
+      <h3>Starting baseline <span className="sm">(optional)</span></h3>
+      <div className="goal-field-grid">
+        <div><label>Successful trials</label><input type="number" inputMode="numeric" min="0" step="1" value={baseline} onChange={onField('baseline')} placeholder="e.g. 1" /></div>
+        <div><label>Total opportunities</label><input type="number" inputMode="numeric" min="1" step="1" value={baselineTotalTrials} onChange={onField('baselineTotalTrials')} placeholder="e.g. 5" /></div>
+      </div>
+    </section>
+  )
+}
 
 function StoForm({ init, submitLabel, onSave, onCancel }) {
   const [f, setF] = useState(init), [msg, setMsg] = useState(''), [busy, setBusy] = useState(false)
@@ -126,13 +167,12 @@ function StoForm({ init, submitLabel, onSave, onCancel }) {
   const cfg = MT[f.mt] || {}, lvl = f.mt === 'independence'
   const types = Object.keys(MT).concat(MT[f.mt] ? [] : [f.mt])
   const stats = Object.keys(STATUS).concat(STATUS[f.status] ? [] : [f.status])
-  const units = cfg.units ? (cfg.units.includes(f.unit) || !f.unit ? cfg.units : [f.unit, ...cfg.units]) : []
   const changeType = e => {
     const mt = e.target.value, c = MT[mt] || {}, flip = (f.mt === 'independence') !== (mt === 'independence')
     setF({ ...f, mt, unit: c.fixed ? c.unit : c.units ? c.units[0] : (c.unit ?? f.unit), baseline: flip ? '' : f.baseline, target: flip ? '' : f.target })
   }
   const val = k => lvl
-    ? <select value={f[k]} onChange={set(k)}><option value="">Select level</option>{Object.entries(SUPPORT_LEVELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+    ? <select value={f[k]} onChange={set(k)}><option value="">Select level</option>{Object.entries(SUPPORT_LEVELS).sort((a, b) => PL.indexOf(a[1]) - PL.indexOf(b[1])).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
     : <input type="number" step="any" value={f[k]} onChange={set(k)} />
   async function save() {
     const num = v => (v === '' ? null : Number(v))
@@ -143,6 +183,10 @@ function StoForm({ init, submitLabel, onSave, onCancel }) {
       if (!Number.isInteger(correct) || !Number.isInteger(total) || total < 1 || correct < 0 || correct > total) return setMsg('Enter valid whole-number target successful trials and total opportunities.')
       if ((f.baseline === '') !== (f.baselineTotalTrials === '')) return setMsg('Enter both baseline values or leave both blank.')
       if (f.baseline !== '' && (!Number.isInteger(+f.baseline) || !Number.isInteger(+f.baselineTotalTrials) || +f.baseline < 0 || +f.baselineTotalTrials < 1 || +f.baseline > +f.baselineTotalTrials)) return setMsg('Baseline trials must be whole numbers with successes no greater than opportunities.')
+      if (STO_STORAGE_ENABLED) {
+        const criteriaError = validateStoTrialCriteria({ title: f.title, target: f.target, targetTotalTrials: f.targetTotalTrials, qualifyingDays: f.qualifyingDays })
+        if (criteriaError) return setMsg(criteriaError)
+      }
       const written = writtenTrialRatio(f.title)
       if (written && (written.correct !== correct || written.total !== total)) return setMsg('The written objective says ' + written.correct + '/' + written.total + ', but the structured target says ' + correct + '/' + total + '. Update one so they match.')
     }
@@ -161,7 +205,8 @@ function StoForm({ init, submitLabel, onSave, onCancel }) {
   unit: f.unit,
   target_date: f.date || null,
   status: f.status,
-  supports: f.supports
+  supports: f.supports,
+  ...(STO_STORAGE_ENABLED ? { qualifying_days: f.mt === 'trials' ? Number(f.qualifyingDays) : null } : {})
 })
     if (saved === false) setMsg('Objective could not be saved; check the error shown above.')
     } catch (error) {
@@ -174,82 +219,30 @@ function StoForm({ init, submitLabel, onSave, onCancel }) {
       <input value={f.title} onChange={set('title')} placeholder="e.g. Completes 3/5 opportunities with verbal support" />
        {f.mt === 'trials' && writtenTrialRatio(f.title) && <p className="trial-helper">Written objective: {writtenTrialRatio(f.title).correct}/{writtenTrialRatio(f.title).total}. Structured target must match.</p>}
       <div className="row">
-        <div><label>Measurement type</label><select value={f.mt} onChange={changeType}>{types.map(t => <option key={t} value={t}>{MT[t] ? MT[t].label : t}</option>)}</select></div>
+        <div><label>Measured as</label><select value={f.mt} onChange={changeType}>{types.map(t => <option key={t} value={t}>{MT[t] ? MT[t].label : t}</option>)}</select></div>
         <div><label>Target date</label><input type="date" value={f.date} onChange={set('date')} /></div>
       </div>
       {f.mt === 'trials' ? (
-  <>
-    <div className="row">
-      <div>
-        <label>Baseline successful trials</label>
-        <input
-          type="number"
-          min="0"
-          value={f.baseline}
-          onChange={set('baseline')}
+        <TrialCriteriaFields
+          context="sto"
+          target={f.target}
+          totalTrials={f.targetTotalTrials}
+          baseline={f.baseline}
+          baselineTotalTrials={f.baselineTotalTrials}
+          qualifyingDays={STO_STORAGE_ENABLED ? f.qualifyingDays : null}
+          onField={key => set(key === 'totalTrials' ? 'targetTotalTrials' : key === 'mastery' ? 'qualifyingDays' : key)}
         />
-      </div>
-
-      <div>
-        <label>Baseline total trials</label>
-        <input
-          type="number"
-          min="1"
-          value={f.baselineTotalTrials}
-          onChange={set('baselineTotalTrials')}
-        />
-      </div>
-    </div>
-
-    <div className="row">
-      <div>
-        <label>Target successful trials</label>
-        <input
-          type="number"
-          min="0"
-          value={f.target}
-          onChange={set('target')}
-        />
-      </div>
-
-      <div>
-        <label>Target total trials</label>
-        <input
-          type="number"
-          min="1"
-          value={f.targetTotalTrials}
-          onChange={set('targetTotalTrials')}
-        />
-      </div>
-    </div>
-  </>
 ) : (
-  <div className="row">
+  <div className="goal-field-grid">
+    <div><label>{f.mt === 'percentage' ? 'Target percentage' : f.mt === 'duration' ? 'Target duration' : f.mt === 'frequency' ? 'Target frequency' : f.mt === 'independence' ? 'Target prompt level' : f.mt === 'yesno' ? 'Target completion' : 'Target count'}</label>{val('target')}</div>
     <div><label>Baseline (optional)</label>{val('baseline')}</div>
-    <div><label>Target</label>{val('target')}</div>
-
-    {!cfg.fixed && (
-      <div>
-        <label>Unit</label>
-        {cfg.units ? (
-          <select value={f.unit} onChange={set('unit')}>
-            {units.map(u => <option key={u}>{u}</option>)}
-          </select>
-        ) : (
-          <input
-            value={f.unit}
-            onChange={set('unit')}
-            placeholder="blocks, steps, words"
-          />
-        )}
-      </div>
-    )}
+    {!cfg.fixed && <div><label>Measured in</label><input value={f.unit} onChange={set('unit')} placeholder="blocks, minutes, incidents" /></div>}
   </div>
 )}
       <label>Status</label>
       <select value={f.status} onChange={set('status')}>{stats.map(k => <option key={k} value={k}>{stLabel(k)}</option>)}</select>
-      <label>Supports</label>
-      <input value={f.supports} onChange={set('supports')} placeholder="Visual cue, hand-over-hand at first" />
+      <label>Supports that help (shared with school and therapists)</label>
+      <input value={f.supports} onChange={set('supports')} placeholder="Visual schedule, hand-over-hand at first" />
       {msg && <div className="err">{msg}</div>}
       <button className="btn" disabled={busy} onClick={save}>{submitLabel}</button>{' '}
       <button className="btn g" onClick={onCancel}>Cancel</button>
@@ -257,7 +250,7 @@ function StoForm({ init, submitLabel, onSave, onCancel }) {
   )
 }
 
-function StoSection({ stos, canEdit, onAdd, onEdit, onDel }) {
+function StoSection({ goal, stos, canEdit, onAdd, onEdit, onDel, stoLogs = [], onStoLog }) {
   const [adding, setAdding] = useState(false), [editId, setEditId] = useState(null), [delId, setDelId] = useState(null)
   const [showAllStos, setShowAllStos] = useState(false)
 
@@ -293,6 +286,7 @@ const visibleStos = showAllStos
   }
 </div>
           {o.supports && <div className="sm"><b>Supports:</b> {o.supports}</div>}
+           {STO_STORAGE_ENABLED && o.measurement_type === 'trials' && <StoTrialEntryPanel sto={o} entries={stoLogs.filter(log => log.sto_id === o.id)} onSave={onStoLog} />}
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 6 }}>
             {canEdit ? (
               <select value={o.status ?? ''} onChange={e => onEdit(o.id, { status: e.target.value })} style={sel}>
@@ -327,13 +321,13 @@ const visibleStos = showAllStos
   </button>
 )}
       {canEdit && (adding
-        ? <StoForm init={blankSto} submitLabel="Add objective" onCancel={() => setAdding(false)} onSave={async row => { const saved = await onAdd(row); if (saved) setAdding(false); return saved }} />
+        ? <StoForm init={blankStoForGoal(goal)} submitLabel="Add objective" onCancel={() => setAdding(false)} onSave={async row => { const saved = await onAdd(row); if (saved) setAdding(false); return saved }} />
         : <div style={{ marginTop: 8 }}><button className="btn g" onClick={() => setAdding(true)}>Add objective</button></div>)}
     </div>
   )
 }
 
-function GoalCard({ g, logs, stos = [], names, uid, parent, canEdit, onEdit, onAddSto, onEditSto, onDelSto, onLog, onDelLog, onDelGoal }) {
+function GoalCard({ g, logs, stos = [], stoLogs = [], onStoLog, names, uid, parent, canEdit, onEdit, onAddSto, onEditSto, onDelSto, onLog, onDelLog, onDelGoal }) {
   const v = gv(g, logs), r = v.slice(-5), last = v[v.length - 1]
   const ind = r.filter(x => decodeSupports(x.prompt_level).includes('Independent')).length
   const [f, setF] = useState({ value: '', trialTotal: '', date: today(), p: ['Independent'], w: 'Home', n: '' }), [c, setC] = useState(false), [ed, setEd] = useState(null)
@@ -414,7 +408,7 @@ const visibleLogs = showAllLogs
 )}
       {g.supports && <div className="sm"><b>Supports that help:</b> {g.supports}</div>}
        {g.measure_type === 'trials' && Number(g.total_trials) > 0 && <div className="trial-criteria-summary"><strong>Mastery:</strong> {g.target}/{g.total_trials} opportunities on {g.mastery_count || 3} distinct qualifying days (not necessarily consecutive). <span>{trialDays(g, v).filter(d => d.qualifies).length} qualifying day(s) recorded.</span></div>}
-      <StoSection stos={stos} canEdit={canEdit} onAdd={onAddSto} onEdit={onEditSto} onDel={onDelSto} />
+      <StoSection goal={g} stos={stos} canEdit={canEdit} onAdd={onAddSto} onEdit={onEditSto} onDel={onDelSto} stoLogs={stoLogs} onStoLog={onStoLog} />
       {r.length > 0 && <div className="sm">Independent in {ind} of last {r.length} entries</div>}
       <div style={{ marginTop: 14 }}>
         {g.measure_type === 'trials' ? (
@@ -1128,36 +1122,20 @@ setScanPreview(previewUrl)
       <div>
   <label>Measured as</label>
   <select value={f.measureType} onChange={set('measureType')}>
-    <option value="count">Count / repetitions</option>
-    <option value="percentage">Percentage / accuracy</option>
-    <option value="trials">Trials / opportunities</option>
-    <option value="duration">Duration</option>
-    <option value="frequency">Frequency</option>
-    <option value="prompt">Prompt / support level</option>
-    <option value="yesno">Yes / No completion</option>
+    {GOAL_MEASURE_TYPES.map(type => <option key={type.value} value={type.value}>{type.label}</option>)}
   </select>
 </div>
 
       {f.measureType === 'trials' ? (
-        <section className="goal-trial-setup" aria-label="Trial goal criteria">
-          <h3>Target performance</h3>
-          <div className="goal-field-grid">
-            <div><label>Successful trials</label><input type="number" inputMode="numeric" min="0" step="1" value={f.target} onChange={set('target')} placeholder="e.g. 3" /></div>
-            <div><label>Total opportunities</label><input type="number" inputMode="numeric" min="1" step="1" value={f.totalTrials} onChange={set('totalTrials')} placeholder="e.g. 5" /></div>
-          </div>
-          {f.target !== '' && +f.totalTrials > 0 && Number.isInteger(+f.target) && +f.target >= 0 && +f.target <= +f.totalTrials &&
-            <p className="trial-helper">Target: {f.target} of {f.totalTrials} opportunities ({Math.round(+f.target / +f.totalTrials * 100)}% accuracy)</p>}
-          <div className="goal-field-grid">
-            <div><label>Qualifying trial days</label><input type="number" inputMode="numeric" min="1" step="1" value={f.mastery} onChange={set('mastery')} /></div>
-            <p className="trial-helper">Count separate calendar dates that meet the target. Days do not have to be consecutive.</p>
-          </div>
-          <h3>Starting baseline <span className="sm">(optional)</span></h3>
-          <div className="goal-field-grid">
-            <div><label>Successful trials</label><input type="number" inputMode="numeric" min="0" step="1" value={f.baseline} onChange={set('baseline')} placeholder="e.g. 1" /></div>
-            <div><label>Total opportunities</label><input type="number" inputMode="numeric" min="1" step="1" value={f.baselineTotalTrials} onChange={set('baselineTotalTrials')} placeholder="e.g. 5" /></div>
-          </div>
-        </section>
-      ) : (
+        <TrialCriteriaFields
+          target={f.target}
+          totalTrials={f.totalTrials}
+          baseline={f.baseline}
+          baselineTotalTrials={f.baselineTotalTrials}
+          qualifyingDays={f.mastery}
+          onField={set}
+        />
+) : (
         <div className="goal-field-grid">
           <div>
             <label>{f.measureType === 'percentage' ? 'Target percentage' : f.measureType === 'duration' ? 'Target duration' : f.measureType === 'frequency' ? 'Target frequency' : f.measureType === 'prompt' ? 'Target prompt level' : f.measureType === 'yesno' ? 'Target completion' : 'Target count'}</label>
@@ -1184,6 +1162,8 @@ setScanPreview(previewUrl)
           const target = Number(f.target), total = Number(f.totalTrials), days = Number(f.mastery)
           if (!Number.isInteger(target) || !Number.isInteger(total) || total < 1 || target < 0 || target > total) return setGoalError('Target must be whole numbers with successful trials no greater than total opportunities.')
           if (!Number.isInteger(days) || days < 1) return setGoalError('Qualifying trial days must be a whole number of at least 1.')
+          const written = writtenTrialRatio(f.title)
+          if (written && (written.correct !== target || written.total !== total)) return setGoalError('The written goal says ' + written.correct + '/' + written.total + ', but the target says ' + target + '/' + total + '. Update one so they match.')
           if ((f.baseline === '') !== (f.baselineTotalTrials === '')) return setGoalError('Enter both baseline counts, or leave both blank.')
           if (f.baseline !== '' && (!Number.isInteger(+f.baseline) || !Number.isInteger(+f.baselineTotalTrials) || +f.baseline < 0 || +f.baselineTotalTrials < 1 || +f.baseline > +f.baselineTotalTrials)) return setGoalError('Baseline must be valid whole-number trials and opportunities.')
         }
@@ -2254,7 +2234,7 @@ function Team({ team, names, uid, parent, cid, kid, onRevoke, onName, onDeleteCh
             if (r.error) setMsg(r.error.message); else {
   setCode(r.data)
 
- const link = `https://steptrack-app.vercel.app/?invite=${encodeURIComponent(r.data)}`
+ const link = `${window.location.origin}/?invite=${encodeURIComponent(r.data)}`
   setInviteLink(link)
 
   setEm('')
@@ -2853,7 +2833,7 @@ useEffect(() => {
   }
 }, [])
   const [showAllGoals, setShowAllGoals] = useState(false)
-  const [d, setD] = useState({ goals: [], logs: [], stos: [], beh: [], team: [], names: {} }), [nk, setNk] = useState('')
+  const [d, setD] = useState({ goals: [], logs: [], stos: [], stoLogs: [], beh: [], team: [], names: {} }), [nk, setNk] = useState('')
   const chk = r => { if (r.error) { setErr(r.error.message); return [] } return r.data || [] }
 
   const loadKids = useCallback(async () => {
@@ -2863,7 +2843,7 @@ useEffect(() => {
   useEffect(() => { loadKids() }, [loadKids])
 
   const load = useCallback(async () => {
-    if (!cid) { setD({ goals: [], logs: [], stos: [], beh: [], team: [], names: {} }); return }
+    if (!cid) { setD({ goals: [], logs: [], stos: [], stoLogs: [], beh: [], team: [], names: {} }); return }
     const [g, l, b, t, p] = await Promise.all([
       supabase.from('goals').select('*').eq('child_id', cid).eq('archived', false).order('created_at'),
       supabase.from('logs').select('*').eq('child_id', cid),
@@ -2873,7 +2853,8 @@ useEffect(() => {
     const goalRows = chk(g)
     const goalIds = goalRows.map(x => x.id)
     const stoRows = goalIds.length ? chk(await supabase.from('sto_objectives').select('*').in('goal_id', goalIds)) : []
-    setD({ goals: goalRows, logs: chk(l), stos: stoRows.slice().sort(stoSort), beh: chk(b), team: chk(t), names: Object.fromEntries(chk(p).map(x => [x.id, x.display_name])) })
+    const stoLogs = STO_STORAGE_ENABLED ? chk(await supabase.from('sto_trial_entries').select('*').eq('child_id', cid)) : []
+    setD({ goals: goalRows, logs: chk(l), stos: stoRows.slice().sort(stoSort), stoLogs, beh: chk(b), team: chk(t), names: Object.fromEntries(chk(p).map(x => [x.id, x.display_name])) })
   }, [cid])
   useEffect(() => { load() }, [load])
 
@@ -3069,6 +3050,12 @@ if (inviteMode) {
                 g={g}
                 logs={d.logs}
                 stos={d.stos.filter(o => o.goal_id === g.id)}
+                stoLogs={(d.stoLogs || []).filter(o => o.goal_id === g.id)}
+                onStoLog={async row => {
+                  const { error } = await supabase.from('sto_trial_entries').insert({ ...row, child_id: cid, goal_id: g.id, logged_by: uid })
+                  if (error) { setErr(error.message); throw error }
+                  setErr(''); await load(); return true
+                }}
                 names={d.names}
                 uid={uid}
                 parent={parent}
