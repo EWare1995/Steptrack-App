@@ -38,3 +38,11 @@ The route `/sto-preview` provides an isolated, synthetic-only demonstration of:
 ## Security boundary
 
 G0 planning is closed. G1 production-baseline capture remains separately unauthorized. This document does **not** authorize executing SQL, migrations, production database inspection, account changes, RLS edits, or assessment tests. Coordinate a separately scoped review and owner approval before any backend implementation.
+
+## Integration progress — 2026-10-29
+
+- Added `lib/stoTrialProgress.js`, a pure helper for per-STO qualifying-day aggregation and written/structured criteria validation. It requires an explicit `sto_id`; entries from a different STO are ignored. Invalid trial records are excluded.
+- Synthetic deterministic check passed: two 2/3 and 1/2 entries on the same day aggregate into one qualifying 3/5 day; 2/5 on another day does not qualify; a different STO's 5/5 entry does not affect this STO; 3/5 across 8 trial days validates; a written 8-day criterion with a structured 7-day target is rejected.
+- The helper is not yet connected to authenticated `Main.js` because there is no reviewed production schema contract for `sto_objectives.qualifying_days` and `logs.sto_id`. The existing `logs` table is still associated with a parent goal, and making arbitrary frontend writes before a schema/RLS review could break logging or compromise child isolation.
+- Required next implementation sequence: confirm schema and RLS with reviewer; create a reviewed migration (not executed yet); wire STO form read/write and logging to the explicit STO ID; keep legacy goal-only logs unaffected; verify with separate synthetic-role accounts; then stage a new preview for owner acceptance before any production promotion.
+- **No database connection, SQL execution, RLS modification, or production deployment took place in this integration pass.**
