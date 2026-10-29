@@ -2234,7 +2234,7 @@ function Team({ team, names, uid, parent, cid, kid, onRevoke, onName, onDeleteCh
             if (r.error) setMsg(r.error.message); else {
   setCode(r.data)
 
- const link = `https://steptrack-app.vercel.app/?invite=${encodeURIComponent(r.data)}`
+ const link = `${window.location.origin}/?invite=${encodeURIComponent(r.data)}`
   setInviteLink(link)
 
   setEm('')
