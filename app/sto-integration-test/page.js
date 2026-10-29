@@ -29,12 +29,12 @@ export default function StoIntegrationTest() {
     return () => data.subscription.unsubscribe()
   }, [client])
 
-  async function reload() {
+  async function reload(preferredChildId = childId) {
     if (!client || !user) return
     const { data: kids, error: kidError } = await client.from('children').select('id,name').order('name')
     if (kidError) { setNotice(kidError.message); return }
     setChildren(kids || [])
-    const chosen = kids?.find(k => k.id === childId)?.id || kids?.[0]?.id || ''
+    const chosen = kids?.find(k => k.id === preferredChildId)?.id || kids?.[0]?.id || ''
     setChildId(chosen)
     if (!chosen) { setStos([]); setEntries([]); return }
     const { data: goals, error: goalError } = await client.from('goals').select('id').eq('child_id', chosen)
@@ -80,7 +80,7 @@ export default function StoIntegrationTest() {
         if (result.error) throw new Error(label + ': ' + result.error.message)
       }
       setChildId(id)
-      await reload()
+      await reload(id)
       setNotice('Created a synthetic student and STO. No production data was used.')
     } catch (error) { setNotice(error.message) }
     setBusy(false)
@@ -110,7 +110,7 @@ export default function StoIntegrationTest() {
         <p>Signed in as {user.email} <button onClick={() => client.auth.signOut()}>Sign out</button></p>
         <button disabled={busy} onClick={makeSyntheticStudent}>Create synthetic student + 3/5 STO</button>{' '}
         <button onClick={reload}>Reload saved data</button>
-        {children.length > 0 && <div style={{ margin: '14px 0' }}><label>Test student <select value={childId} onChange={e => setChildId(e.target.value)}>
+        {children.length > 0 && <div style={{ margin: '14px 0' }}><label>Test student <select value={childId} onChange={e => { setChildId(e.target.value); reload(e.target.value) }}>
           {children.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label></div>}
         {stos.filter(s => children.some(c => c.id === childId)).map(sto =>
           <section key={sto.id} style={{ border: '1px solid #d6e0ed', borderRadius: 12, padding: 16, margin: '16px 0' }}>
