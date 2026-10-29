@@ -230,7 +230,7 @@ function StoForm({ init, submitLabel, onSave, onCancel }) {
           baseline={f.baseline}
           baselineTotalTrials={f.baselineTotalTrials}
           qualifyingDays={STO_STORAGE_ENABLED ? f.qualifyingDays : null}
-          onField={key => set(key === 'totalTrials' ? 'targetTotalTrials' : key)}
+          onField={key => set(key === 'totalTrials' ? 'targetTotalTrials' : key === 'mastery' ? 'qualifyingDays' : key)}
         />
 ) : (
   <div className="goal-field-grid">
